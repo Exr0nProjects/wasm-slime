@@ -1,3 +1,6 @@
 import * as wasm from "wasm-slime";
 
-wasm.greet();
+
+console.log("what the heck maaaaaaaaahnnnnn");
+wasm.greet("eee");
+console.log("whyyyyyyyyyyyyyyyy");
