@@ -6,6 +6,7 @@ use wasm_bindgen::JsCast;
 use js_sys::{ Array, Function };
 
 use std::f64::consts::PI;
+use std::collections::VecDeque;
 
 
 // When the `wee_alloc` feature is enabled, this uses `wee_alloc` as the global
@@ -29,20 +30,30 @@ pub fn gameloop() {
 
 }
 
+#[derive(Debug)]
 struct Agent {
     pos_x: f64,
     pos_y: f64,
     heading: f64,   // radians
 }
 
+//#[derive(Debug)]
+//struct Pixel {
+//    val: u8,
+//}
+//struct Pixel(u8);
+
+#[derive(Debug)]
 struct Dish {
-    size_w: u32,
-    size_h: u32,
+    size_w: usize,
+    size_h: usize,
     agents: Vec<Agent>,
+    //data: Vec<Vec<Pixel>>,
+    trail: Vec<Vec<u8>>,
 }
 impl Dish {
-    fn new(size_w: u32, size_h: u32) -> Dish {
-        Dish { size_w, size_h, agents: Vec::new() }
+    fn new(size_w: usize, size_h: usize) -> Dish {
+        Dish { size_w, size_h, agents: Vec::new(/* todo */), trail: vec![vec![ /* todo */ ]] }
     }
     fn render(&self, updates: u32) {
         // TODO: lets not get the canvas from scratch every time
@@ -66,6 +77,53 @@ impl Dish {
         console::log_1(&JsValue::from_str(&format!("amazing: {}", updates % 50)));
         let updates = (updates % 50) as f64;
         ctx.fill_rect(self.size_w as f64/2. - updates/2., self.size_h as f64/2. - updates/2., updates, updates);
+    }
+}
+impl Dish {
+    fn update(&mut self, updates: u32) {
+        for agent in &mut self.agents { // NTFS: probably expensive; parallelize
+            agent.update(&self.trail);
+        }
+        for agent in &self.agents {
+            let [y, x, val] = agent.deposit();
+            self.trail[y][x].val = u8::MAX.min(self.trail[y][x] + val);
+        }
+        self.diffuse();
+        self.decay();
+    }
+    fn diffuse(&mut self) {
+        let mut buf = VecDeque::<u8>::new();
+        buf.reserve_exact((self.size_w + 1) as usize);  // rolling array for calculating average in 3x3
+
+        buf.push_front(self.trail[self.size_h][self.size_w]);
+        // TODO: insert bottom row 
+        buf.push_back (self.trail[0          ][self.size_w]);
+
+        // TODO copy in for init
+        for y in 0..self.size_h {
+            for x in 0..self.size_w {
+                buf.push_back(self.trail[y][x]);
+                self.trail[y][x] = (
+                    self.trail[y][x] 
+                  + buf[0]
+                  + buf[1]
+                  + buf[2]
+                  + buf[buf.len()-2]
+                  + self.trail[y+1][x  ] 
+                  + self.trail[y+1][x+1] 
+                  + self.trail[y  ][x+1] 
+                  + self.trail[y+1][x-1]
+                  )/9;
+                buf.pop_front();
+            } 
+        }
+    }
+    fn decay(&mut self) {
+        for row in &mut self.trail {
+            for pix in row.iter_mut() {
+                *pix /= 2;
+            }
+        }
     }
 }
 
