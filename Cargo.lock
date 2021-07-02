@@ -38,9 +38,9 @@ checksum = "3a471a38ef8ed83cd6e40aa59c1ffe17db6855c18e3604d9c4ed8c08ebc28678"
 
 [[package]]
 name = "game-loop"
-version = "0.4.0"
+version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b48ba0d73cea214dec445ad9e53580869b5feb44d26073476882405cd831c82c"
+checksum = "10ec44fb1e8a994386ae9a71c516a0f1476419b42f31a58bd8ae8bb7cd131732"
 dependencies = [
  "wasm-bindgen",
  "web-sys",
