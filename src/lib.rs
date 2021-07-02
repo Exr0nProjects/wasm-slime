@@ -29,23 +29,11 @@ pub fn main_js() -> Result<(), JsValue> {
             if let Ok(Some(body)) = doc.query_selector("body") {
                 let p: Node = doc.create_element("p")?.into();
                 p.set_text_content(Some("Hello from Rust, WebAssembly, and Webpack!"));
-                body.append_with_node_1(&p);
+                body.prepend_with_node_1(&p);
                 console::log_1(&JsValue::from_str("should have appended paragraph.. :thinking:"));
             }
         }
     }
-
-
-    //match window() {
-    //    Some(win) => {
-    //        console::log_1(&JsValue::from_str("Got window!"));
-    //    },
-    //    _ => {
-    //        console::log_1(&JsValue::from_str("Couldn't get window!"));
-    //    }
-    //}
-    //let p = document.create_element("p")?.into();
-    //p.set_text_content(Some("Hello from Rust, WebAssembly, and Webpack!"));
 
     Ok(())
 }

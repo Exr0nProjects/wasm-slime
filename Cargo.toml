@@ -34,7 +34,7 @@ wee_alloc = { version = "0.4.2", optional = true }
 # like the DOM.
 [dependencies.web-sys]
 version = "0.3.22"
-features = ["console", "Window", "Document", "Element", "Node"]
+features = ["console", "Window", "Document", "Element", "Node", "CanvasRenderingContext2d", "HtmlCanvasElement"]
 
 [dependencies.js-sys]
 version = "0.3.51"

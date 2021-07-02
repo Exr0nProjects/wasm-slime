@@ -2,9 +2,25 @@
 <html>
   <head>
     <meta charset="UTF-8">
-    <title>My Rust + Webpack project!</title>
+    <title>Wasm Slime</title>
+    <style>
+body {
+    background-color: black;
+    color: white;
+    font: monospace thin 12px; 
+}
+#slime-canvas {
+    border: 2px solid green;
+    width: 80%;
+    height: 80%;
+    margin: auto;
+    position: fixed;
+}
+    </style>
   </head>
   <body>
     <script src="index.js"></script>
+    <canvas id="slime-canvas">
+    </canvas>
   </body>
 </html>
