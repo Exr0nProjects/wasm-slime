@@ -37,6 +37,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a471a38ef8ed83cd6e40aa59c1ffe17db6855c18e3604d9c4ed8c08ebc28678"
 
 [[package]]
+name = "game-loop"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b48ba0d73cea214dec445ad9e53580869b5feb44d26073476882405cd831c82c"
+dependencies = [
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
 name = "js-sys"
 version = "0.3.51"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -114,6 +124,7 @@ version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
  "futures",
+ "game-loop",
  "js-sys",
  "wasm-bindgen",
  "wasm-bindgen-futures",

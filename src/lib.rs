@@ -1,7 +1,7 @@
 use wasm_bindgen::prelude::*;
 use web_sys::{ console, window, Node };
 use wasm_bindgen::JsCast;
-use js_sys::{ Array };
+use js_sys::{ Array, Function };
 
 use std::f64::consts::PI;
 
@@ -14,6 +14,18 @@ use std::f64::consts::PI;
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
+
+const FRAMERATE: f64 = 100.;
+
+#[wasm_bindgen]
+pub fn gameloop() {
+    console::log_1(&JsValue::from_str(&format!("amazing: {}", 3)));
+
+    //web_sys::window().unwrap().request_animation_frame(tick.as_ref().unchecked_ref());
+
+    //web_sys::window().unwrap().request_animation_frame(cb.as_ref().unchecked_ref());
+
+}
 
 // This is like the `main` function, except for JavaScript.
 #[wasm_bindgen(start)]
@@ -66,6 +78,17 @@ pub fn main_js() -> Result<(), JsValue> {
     //        }
     //    }
     //}
+
+
+    let tick = Closure::wrap(Box::new(move || {
+            console::log_1(&JsValue::from_str(&format!("amazing: {}", 3)));
+        }) as Box<dyn FnMut()>);
+
+    //let tick = Closure::wrap(Box::new(gameloop));
+
+    // when rust has a java moment
+    let interval_id = window.set_interval_with_callback_and_timeout_and_arguments_0(
+        tick.as_ref().unchecked_ref(), (1000. / FRAMERATE) as i32); // https://docs.rs/wasm-bindgen/0.2.74/wasm_bindgen/closure/struct.Closure.html
 
     Ok(())
 }
