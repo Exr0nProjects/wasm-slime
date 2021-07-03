@@ -6,6 +6,7 @@ use wasm_bindgen::JsCast;
 use js_sys::{ Array, Function };
 
 use std::f64::consts::PI;
+use core::ops::{ Index, IndexMut };
 use std::collections::VecDeque;
 
 
@@ -42,6 +43,30 @@ struct Agent {
 //    val: u8,
 //}
 //struct Pixel(u8);
+
+#[derive(Debug)]
+struct Vec2d {
+    size_w: usize,
+    size_h: usize,
+    data: Vec<u8>
+}
+impl Vec2d {
+    fn new(size_w: usize, size_h: usize) -> Vec2d {
+        Vec2d { size_w, size_h, data: vec![0u8; size_h * size_w] }
+    }
+}
+
+impl Index<(usize, usize)> for Vec2d {
+    type Output = u8;
+    fn index(&self, index: (usize, usize)) -> &Self::Output {
+        &self.data[index.0.rem_euclid(self.size_h) * self.size_w + index.1.rem_euclid(self.size_w)]
+    }
+}
+impl IndexMut<(usize, usize)> for Vec2d {
+    fn index_mut(&mut self, index: (usize, usize)) -> &mut Self::Output {
+        &mut self.data[index.0.rem_euclid(self.size_h) * self.size_w + index.1.rem_euclid(self.size_w)]
+    }
+}
 
 #[derive(Debug)]
 struct Dish {
@@ -159,33 +184,6 @@ pub fn main_js() -> Result<(), JsValue> {
     let [width, height] = [canvas.width(), canvas.height()];
      
     // TODO: handle window resizing
-
-    //ctx.set_fill_style(&JsValue::from_str("green"));
-    //ctx.fill_rect(width/2. - 50., height/2. - 50., 100., 100.);
-    //
-    //if let Some(win) = window() {
-    //    console::log_1(&JsValue::from_str("Got window!"));
-    //    if let Some(doc) = win.document() {
-    //        console::log_1(&JsValue::from_str("Got document!"));
-    //        if let Ok(Some(body)) = doc.query_selector("body") {
-    //            let p: Node = doc.create_element("p")?.into();
-    //            p.set_text_content(Some("Hello from Rust, WebAssembly, and Webpack!"));
-    //            body.prepend_with_node_1(&p);
-    //            console::log_1(&JsValue::from_str("should have appended paragraph.. :thinking:"));
-    //        }
-    //    }
-    //}
-
-
-    //let tick = Closure::wrap(Box::new(move || {
-    //        console::log_1(&JsValue::from_str(&format!("amazing: {}", 3)));
-    //    }) as Box<dyn FnMut()>);
-    //
-    ////let tick = Closure::wrap(Box::new(gameloop));
-    //
-    //// when rust has a java moment
-    //let interval_id = window.set_interval_with_callback_and_timeout_and_arguments_0(
-    //    tick.as_ref().unchecked_ref(), (1000. / FRAMERATE) as i32); // https://docs.rs/wasm-bindgen/0.2.74/wasm_bindgen/closure/struct.Closure.html
     
 
     let sim = Dish::new(width, height);
