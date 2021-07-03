@@ -8,6 +8,7 @@ use js_sys::{ Array, Function };
 use std::f64::consts::PI;
 use core::ops::{ Index, IndexMut };
 use std::collections::VecDeque;
+use std::mem::swap;
 
 
 // When the `wee_alloc` feature is enabled, this uses `wee_alloc` as the global
@@ -20,6 +21,7 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 
 const FRAMERATE: f64 = 100.;
+const DIFFUSE_RADIUS: i32 = 1; // diffuse in 3x3 square
 
 #[wasm_bindgen]
 pub fn gameloop() {
@@ -56,15 +58,17 @@ impl Vec2d {
     }
 }
 
-impl Index<(usize, usize)> for Vec2d {
+impl Index<(i32, i32)> for Vec2d {
     type Output = u8;
-    fn index(&self, index: (usize, usize)) -> &Self::Output {
-        &self.data[index.0.rem_euclid(self.size_h) * self.size_w + index.1.rem_euclid(self.size_w)]
+    fn index(&self, index: (i32, i32)) -> &Self::Output {
+        &self.data[index.0.rem_euclid(self.size_h as i32) as usize * self.size_w
+                 + index.1.rem_euclid(self.size_w as i32) as usize]
     }
 }
-impl IndexMut<(usize, usize)> for Vec2d {
-    fn index_mut(&mut self, index: (usize, usize)) -> &mut Self::Output {
-        &mut self.data[index.0.rem_euclid(self.size_h) * self.size_w + index.1.rem_euclid(self.size_w)]
+impl IndexMut<(i32, i32)> for Vec2d {
+    fn index_mut(&mut self, index: (i32, i32)) -> &mut Self::Output {
+        &mut self.data[index.0.rem_euclid(self.size_h as i32) as usize * self.size_w
+                     + index.1.rem_euclid(self.size_w as i32) as usize]
     }
 }
 
@@ -73,12 +77,16 @@ struct Dish {
     size_w: usize,
     size_h: usize,
     agents: Vec<Agent>,
+    data: Vec2d,
+    data_alt: Vec2d,
     //data: Vec<Vec<Pixel>>,
-    trail: Vec<Vec<u8>>,
+    //trail: Vec<Vec<u8>>,
 }
 impl Dish {
     fn new(size_w: usize, size_h: usize) -> Dish {
-        Dish { size_w, size_h, agents: Vec::new(/* todo */), trail: vec![vec![ /* todo */ ]] }
+        Dish { size_w, size_h, agents: Vec::new(/* todo */),
+               data:     Vec2d::new(size_w, size_h),
+               data_alt: Vec2d::new(size_w, size_h)}
     }
     fn render(&self, updates: u32) {
         // TODO: lets not get the canvas from scratch every time
@@ -107,46 +115,65 @@ impl Dish {
 impl Dish {
     fn update(&mut self, updates: u32) {
         for agent in &mut self.agents { // NTFS: probably expensive; parallelize
-            agent.update(&self.trail);
+            agent.update(&self.data);
         }
         for agent in &self.agents {
             let [y, x, val] = agent.deposit();
-            self.trail[y][x].val = u8::MAX.min(self.trail[y][x] + val);
+            self.data[(y, x)].saturating_add(val);
         }
         self.diffuse();
         self.decay();
     }
     fn diffuse(&mut self) {
-        let mut buf = VecDeque::<u8>::new();
-        buf.reserve_exact((self.size_w + 1) as usize);  // rolling array for calculating average in 3x3
-
-        buf.push_front(self.trail[self.size_h][self.size_w]);
-        // TODO: insert bottom row 
-        buf.push_back (self.trail[0          ][self.size_w]);
-
-        // TODO copy in for init
-        for y in 0..self.size_h {
-            for x in 0..self.size_w {
-                buf.push_back(self.trail[y][x]);
-                self.trail[y][x] = (
-                    self.trail[y][x] 
-                  + buf[0]
-                  + buf[1]
-                  + buf[2]
-                  + buf[buf.len()-2]
-                  + self.trail[y+1][x  ] 
-                  + self.trail[y+1][x+1] 
-                  + self.trail[y  ][x+1] 
-                  + self.trail[y+1][x-1]
-                  )/9;
-                buf.pop_front();
-            } 
+        // lets not use rolling because maybe we'll want a larger diffuse kernal, easier to just
+        // swap
+        //let mut buf = VecDeque::<u8>::new();
+        //buf.reserve_exact((self.size_w + 1) as usize);  // rolling array for calculating average in 3x3
+        //
+        //buf.push_front(self.data[(-1, -1)]);
+        //// TODO: insert bottom row 
+        //buf.push_back (self.data[]);
+        //
+        //// TODO copy in for init
+        //for y in 0..self.size_h {
+        //    for x in 0..self.size_w {
+        //        buf.push_back(self.trail[y][x]);
+        //        self.trail[y][x] = (
+        //            self.trail[y][x] 
+        //          + buf[0]
+        //          + buf[1]
+        //          + buf[2]
+        //          + buf[buf.len()-2]
+        //          + self.trail[y+1][x  ] 
+        //          + self.trail[y+1][x+1] 
+        //          + self.trail[y  ][x+1] 
+        //          + self.trail[y+1][x-1]
+        //          )/9;
+        //        buf.pop_front();
+        //    } 
+        //}
+        for cy in 0..self.size_h as i32 {
+            for cx in 0..self.size_w as i32 {
+                let sum = 0i32;
+                for y in cy-DIFFUSE_RADIUS..cy+DIFFUSE_RADIUS + 1 {
+                    for x in cy-DIFFUSE_RADIUS..cy+DIFFUSE_RADIUS + 1 {
+                        sum += self.data[(y, x)] as i32;
+                    }
+                }
+                self.data_alt[(cy, cx)] = (sum / (DIFFUSE_RADIUS * 2 + 1).pow(2)).min(u8::MAX as i32) as u8;
+            }
         }
+        swap(&mut self.data, &mut self.data_alt);
     }
     fn decay(&mut self) {
-        for row in &mut self.trail {
-            for pix in row.iter_mut() {
-                *pix /= 2;
+        //for row in &mut self.trail {
+        //    for pix in row.iter_mut() {
+        //        *pix /= 2;
+        //    }
+        //}
+        for y in 0..self.size_h as i32 {
+            for x in 0..self.size_w as i32 {
+                self.data[(y, x)] /= 2;
             }
         }
     }
