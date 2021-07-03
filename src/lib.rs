@@ -3,7 +3,6 @@ use game_loop::game_loop;
 use wasm_bindgen::prelude::*;
 use web_sys::{ console, window, Node };
 use wasm_bindgen::JsCast;
-use js_sys::{ Array, Function };
 
 use rand::prelude::thread_rng;
 use rand::distributions::{Distribution, Uniform};
@@ -11,7 +10,6 @@ use rand_distr::Normal;
 
 use std::f64::consts::PI;
 use core::ops::{ Index, IndexMut };
-use std::collections::VecDeque;
 use std::mem::swap;
 use std::iter;
 
@@ -36,10 +34,6 @@ struct Agent {
     heading: f64,   // radians
 }
 impl Agent {
-    //fn in_rect_rng(size_w: usize, size_h: usize, rng: ThreadRng) -> Agent {
-    //    Agent { pos_x: Normal::from(0, size_w).sample(&mut rng) }
-    //    // TODO
-    //}
     fn update(&mut self, data: &Vec2d, size_w: usize, size_h: usize) {
         // TODO: sensor checks
         self.pos_y = (self.pos_y + self.vel * self.heading.sin()).rem_euclid(size_h as f64);
@@ -49,12 +43,6 @@ impl Agent {
         (self.pos_y.round() as i32, self.pos_x.round() as i32, 255)
     }
 }
-
-//#[derive(Debug)]
-//struct Pixel {
-//    val: u8,
-//}
-//struct Pixel(u8);
 
 #[derive(Debug)]
 struct Vec2d {
@@ -90,8 +78,6 @@ struct Dish {
     data: Vec2d,
     data_alt: Vec2d,
     canvas: web_sys::HtmlCanvasElement,
-    //data: Vec<Vec<Pixel>>,
-    //trail: Vec<Vec<u8>>,
 }
 impl Dish {
     fn new(size_w: usize, size_h: usize) -> Dish {
@@ -102,7 +88,7 @@ impl Dish {
         let dist_y = Normal::new(0., size_h as f64).expect("Couldn't create normal distribution!");
         let dist_x = Normal::new(0., size_w as f64).expect("Couldn't create normal distribution!");
         let dist_hd = Uniform::from(0f64..PI*2.);
-        let agents = iter::repeat(()).take(1)
+        let agents = iter::repeat(()).take(100)
             .map(|()| Agent {
                 pos_y: dist_y.sample(&mut rng),
                 pos_x: dist_x.sample(&mut rng),
@@ -120,14 +106,6 @@ impl Dish {
         }
     }
     fn render(&self, updates: u32) {
-        // TODO: lets not get the canvas from scratch every time
-        //let window = web_sys::window().unwrap();
-        //let document = window.document().unwrap();
-        //let canvas = document.get_element_by_id("slime-canvas").unwrap();
-        //let canvas: web_sys::HtmlCanvasElement = canvas
-        //    .dyn_into::<web_sys::HtmlCanvasElement>()
-        //    .map_err(|_| ())
-        //    .unwrap();
         let ctx = self.canvas
             .get_context("2d")
             .unwrap()
@@ -140,11 +118,6 @@ impl Dish {
 
         ctx.clear_rect(0., 0., self.canvas.width() as f64, self.canvas.height() as f64);
 
-        ctx.set_fill_style(&JsValue::from_str("green"));
-        ctx.fill_rect(10., 10., self.size_w as f64 - 20., self.size_h as f64 - 20.);
-        //console::log_1(&JsValue::from_str(&format!("amazing: {}", updates % 50)));
-        //let updates = (updates % 50) as f64;
-        //ctx.fill_rect(self.size_w as f64/2. - updates/2., self.size_h as f64/2. - updates/2., updates, updates);
         //console::log_1(&JsValue::from_str(&format!("num agents {}", self.agents.len())));
         for y in 0..self.size_w as i32 {
             for x in 0..self.size_h as i32 {
@@ -183,9 +156,6 @@ impl Dish {
                     }
                 }
                 self.data_alt[(cy, cx)] = (sum / (DIFFUSE_RADIUS * 2 + 1).pow(2)).min(u8::MAX as i32) as u8;
-                if sum > 0 {
-                    console::log_1(&JsValue::from_str(&format!("sum = {}, val = {}", sum, self.data_alt[(cy, cx)])));
-                }
             }
         }
         swap(&mut self.data, &mut self.data_alt);
@@ -193,7 +163,7 @@ impl Dish {
     fn decay(&mut self) {
         for y in 0..self.size_h as i32 {
             for x in 0..self.size_w as i32 {
-                self.data[(y, x)] = (self.data[(y, x)] as f64 * 0.7) as u8;
+                self.data[(y, x)] = (self.data[(y, x)] as f64 * 0.95) as u8;
             }
         }
     }
@@ -216,23 +186,15 @@ pub fn main_js() -> Result<(), JsValue> {
         .dyn_into::<web_sys::HtmlCanvasElement>()
         .map_err(|_| ())
         .unwrap();
-    let [win_wid, win_hei] = {
-        let x = document.document_element().unwrap();
-        [x.client_width(), x.client_height()]
-    };
+    //let [win_wid, win_hei] = {
+    //    let x = document.document_element().unwrap();
+    //    [x.client_width(), x.client_height()]
+    //};
 
-    let ctx = canvas
-        .get_context("2d")
-        .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::CanvasRenderingContext2d>()
-        .unwrap();
-
-    let [width, height] = [canvas.width(), canvas.height()];
+    let [width, height] = [canvas.client_width(), canvas.client_height()];
      
     // TODO: handle window resizing
     
-
     let sim = Dish::new(width as usize, height as usize);
     //let sim = Dish::new(300, 100);
     game_loop(sim, 1, 0.1, |g| {
