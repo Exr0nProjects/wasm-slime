@@ -28,16 +28,6 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 const FRAMERATE: f64 = 100.;
 const DIFFUSE_RADIUS: i32 = 1; // diffuse in 3x3 square
 
-#[wasm_bindgen]
-pub fn gameloop() {
-    console::log_1(&JsValue::from_str(&format!("amazing: {}", 3)));
-
-    //web_sys::window().unwrap().request_animation_frame(tick.as_ref().unchecked_ref());
-
-    //web_sys::window().unwrap().request_animation_frame(cb.as_ref().unchecked_ref());
-
-}
-
 #[derive(Debug)]
 struct Agent {
     pos_x: f64,
@@ -53,7 +43,7 @@ impl Agent {
     fn update(&mut self, data: &Vec2d, size_w: usize, size_h: usize) {
         // TODO: sensor checks
         self.pos_y = (self.pos_y + self.vel * self.heading.sin()).rem_euclid(size_h as f64);
-        self.pos_x = (self.pos_x + self.vel * self.heading.sin()).rem_euclid(size_w as f64);
+        self.pos_x = (self.pos_x + self.vel * self.heading.cos()).rem_euclid(size_w as f64);
     }
     fn deposit(&self) -> (i32, i32, u8) {
         (self.pos_y.round() as i32, self.pos_x.round() as i32, 255)
@@ -105,17 +95,18 @@ struct Dish {
 }
 impl Dish {
     fn new(size_w: usize, size_h: usize) -> Dish {
+        println!("new dish with size {} by {}", size_w, size_h);
         let doc = web_sys::window().unwrap().document().unwrap();
 
         let mut rng = thread_rng();
         let dist_y = Normal::new(0., size_h as f64).expect("Couldn't create normal distribution!");
         let dist_x = Normal::new(0., size_w as f64).expect("Couldn't create normal distribution!");
         let dist_hd = Uniform::from(0f64..PI*2.);
-        let agents = iter::repeat(()).take(100)
+        let agents = iter::repeat(()).take(1)
             .map(|()| Agent {
                 pos_y: dist_y.sample(&mut rng),
                 pos_x: dist_x.sample(&mut rng),
-                vel: 10.,
+                vel: 2.,
                 heading: dist_hd.sample(&mut rng),
             }).collect();
 
@@ -144,24 +135,25 @@ impl Dish {
             .dyn_into::<web_sys::CanvasRenderingContext2d>()
             .unwrap();
 
-        self.canvas.set_width(self.size_w as u32);
-        self.canvas.set_height(self.size_h as u32);
+        //self.canvas.set_width(self.size_w as u32);
+        //self.canvas.set_height(self.size_h as u32);
 
         ctx.clear_rect(0., 0., self.canvas.width() as f64, self.canvas.height() as f64);
 
-        ctx.set_fill_style(&JsValue::from_str("white"));
+        ctx.set_fill_style(&JsValue::from_str("green"));
+        ctx.fill_rect(10., 10., self.size_w as f64 - 20., self.size_h as f64 - 20.);
         //console::log_1(&JsValue::from_str(&format!("amazing: {}", updates % 50)));
         //let updates = (updates % 50) as f64;
         //ctx.fill_rect(self.size_w as f64/2. - updates/2., self.size_h as f64/2. - updates/2., updates, updates);
-        console::log_1(&JsValue::from_str(&format!("num agents {}", self.agents.len())));
+        //console::log_1(&JsValue::from_str(&format!("num agents {}", self.agents.len())));
         for y in 0..self.size_w as i32 {
             for x in 0..self.size_h as i32 {
                 if self.data[(y, x)] > 0 {
-                    console::log_1(&JsValue::from_str(&format!("#{:02x?}{0:02x?}{0:02x?}", self.data[(y, x)])));
+                    //console::log_1(&JsValue::from_str(&format!("{} #{:02x?}{1:02x?}{1:02x?}", self.data[(y, x)], self.data[(y, x)])));
                     ctx.set_fill_style(&JsValue::from_str(
                             &format!("#{:02x?}{0:02x?}{0:02x?}", self.data[(y, x)])
                         ));
-                    ctx.fill_rect(y as f64, x as f64, 1., 1.);
+                    ctx.fill_rect(x as f64, y as f64, 1., 1.);
                 }
             }
         }
@@ -169,66 +161,39 @@ impl Dish {
 }
 impl Dish {
     fn update(&mut self, updates: u32) {
+        self.diffuse();
+        self.decay();
         for agent in &mut self.agents { // NTFS: probably expensive; parallelize
             agent.update(&self.data, self.size_w, self.size_h);
         }
         for agent in &self.agents {
             let (y, x, val) = agent.deposit();
-            self.data[(y, x)].saturating_add(val);
+            self.data[(y, x)] = self.data[(y, x)].saturating_add(val);
+            //console::log_1(&JsValue::from_str(&format!("val = {} at {}, {}", val, x, y)));
         }
-        self.diffuse();
-        self.decay();
     }
     fn diffuse(&mut self) {
-        // lets not use rolling because maybe we'll want a larger diffuse kernal, easier to just
-        // swap
-        //let mut buf = VecDeque::<u8>::new();
-        //buf.reserve_exact((self.size_w + 1) as usize);  // rolling array for calculating average in 3x3
-        //
-        //buf.push_front(self.data[(-1, -1)]);
-        //// TODO: insert bottom row 
-        //buf.push_back (self.data[]);
-        //
-        //// TODO copy in for init
-        //for y in 0..self.size_h {
-        //    for x in 0..self.size_w {
-        //        buf.push_back(self.trail[y][x]);
-        //        self.trail[y][x] = (
-        //            self.trail[y][x] 
-        //          + buf[0]
-        //          + buf[1]
-        //          + buf[2]
-        //          + buf[buf.len()-2]
-        //          + self.trail[y+1][x  ] 
-        //          + self.trail[y+1][x+1] 
-        //          + self.trail[y  ][x+1] 
-        //          + self.trail[y+1][x-1]
-        //          )/9;
-        //        buf.pop_front();
-        //    } 
-        //}
+        console::log_1(&JsValue::from_str(&format!("size = {} {}", self.size_w, self.size_h)));
         for cy in 0..self.size_h as i32 {
             for cx in 0..self.size_w as i32 {
                 let mut sum = 0i32;
                 for y in cy-DIFFUSE_RADIUS..cy+DIFFUSE_RADIUS + 1 {
-                    for x in cy-DIFFUSE_RADIUS..cy+DIFFUSE_RADIUS + 1 {
+                    for x in cx-DIFFUSE_RADIUS..cx+DIFFUSE_RADIUS + 1 {
                         sum += self.data[(y, x)] as i32;
                     }
                 }
                 self.data_alt[(cy, cx)] = (sum / (DIFFUSE_RADIUS * 2 + 1).pow(2)).min(u8::MAX as i32) as u8;
+                if sum > 0 {
+                    console::log_1(&JsValue::from_str(&format!("sum = {}, val = {}", sum, self.data_alt[(cy, cx)])));
+                }
             }
         }
         swap(&mut self.data, &mut self.data_alt);
     }
     fn decay(&mut self) {
-        //for row in &mut self.trail {
-        //    for pix in row.iter_mut() {
-        //        *pix /= 2;
-        //    }
-        //}
         for y in 0..self.size_h as i32 {
             for x in 0..self.size_w as i32 {
-                self.data[(y, x)] /= 2;
+                self.data[(y, x)] = (self.data[(y, x)] as f64 * 0.7) as u8;
             }
         }
     }
@@ -268,9 +233,9 @@ pub fn main_js() -> Result<(), JsValue> {
     // TODO: handle window resizing
     
 
-    //let sim = Dish::new(width as usize, height as usize);
-    let sim = Dish::new(300, 100);
-    game_loop(sim, 240, 0.1, |g| {
+    let sim = Dish::new(width as usize, height as usize);
+    //let sim = Dish::new(300, 100);
+    game_loop(sim, 1, 0.1, |g| {
         // update fn
         g.game.update(g.number_of_updates());
     }, |g| {
