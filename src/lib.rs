@@ -1,3 +1,4 @@
+#![feature(array_map)]
 use game_loop::game_loop;
 
 use wasm_bindgen::prelude::*;
@@ -25,6 +26,10 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 const FRAMERATE: f64 = 100.;
 const DIFFUSE_RADIUS: i32 = 1; // diffuse in 3x3 square
+const SENSOR_RADIUS: f64 = 1.;
+const SENSOR_ANGLE: f64 = PI/4.;
+const SENSOR_DISTANCE: f64 = 5.;
+const TURN_ANGLE: f64 = PI/8.;
 
 #[derive(Debug)]
 struct Agent {
@@ -35,6 +40,28 @@ struct Agent {
 }
 impl Agent {
     fn update(&mut self, data: &Vec2d, size_w: usize, size_h: usize) {
+        let [lef, fwd, rig] = [(self.pos_x + SENSOR_DISTANCE * (self.heading - SENSOR_ANGLE).cos(),
+                            self.pos_y + SENSOR_DISTANCE * (self.heading - SENSOR_ANGLE).sin()),
+                           (self.pos_x + SENSOR_DISTANCE * (self.heading               ).cos(),
+                            self.pos_y + SENSOR_DISTANCE * (self.heading               ).sin()),
+                           (self.pos_x + SENSOR_DISTANCE * (self.heading + SENSOR_ANGLE).cos(),
+                            self.pos_y + SENSOR_DISTANCE * (self.heading + SENSOR_ANGLE).sin()),
+        ].map(|(cy, cx)| {
+            let mut sum = 0i32;
+            // TODO: circular
+            for y in (cy-SENSOR_RADIUS).round() as i32..(cy+SENSOR_RADIUS).round() as i32 {
+                for x in (cx-SENSOR_RADIUS).round() as i32..(cx+SENSOR_RADIUS).round() as i32 {
+                    sum += data[(y, x)] as i32
+                }
+            }
+            sum
+        });
+
+        // TODO: random steer strength
+        if      fwd > lef && fwd > rig {}
+        else if fwd < lef && fwd < rig { /*TODO*/ }
+
+
         // TODO: sensor checks
         self.pos_y = (self.pos_y + self.vel * self.heading.sin()).rem_euclid(size_h as f64);
         self.pos_x = (self.pos_x + self.vel * self.heading.cos()).rem_euclid(size_w as f64);
@@ -88,7 +115,7 @@ impl Dish {
         let dist_y = Normal::new(0., size_h as f64).expect("Couldn't create normal distribution!");
         let dist_x = Normal::new(0., size_w as f64).expect("Couldn't create normal distribution!");
         let dist_hd = Uniform::from(0f64..PI*2.);
-        let agents = iter::repeat(()).take(100)
+        let agents = iter::repeat(()).take(200)
             .map(|()| Agent {
                 pos_y: dist_y.sample(&mut rng),
                 pos_x: dist_x.sample(&mut rng),
@@ -163,7 +190,7 @@ impl Dish {
     fn decay(&mut self) {
         for y in 0..self.size_h as i32 {
             for x in 0..self.size_w as i32 {
-                self.data[(y, x)] = (self.data[(y, x)] as f64 * 0.95) as u8;
+                self.data[(y, x)] = (self.data[(y, x)] as f64 * 0.97) as u8;
             }
         }
     }
@@ -197,7 +224,7 @@ pub fn main_js() -> Result<(), JsValue> {
     
     let sim = Dish::new(width as usize, height as usize);
     //let sim = Dish::new(300, 100);
-    game_loop(sim, 1, 0.1, |g| {
+    game_loop(sim, 10, 0.05, |g| {
         // update fn
         g.game.update(g.number_of_updates());
     }, |g| {
