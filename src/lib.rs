@@ -5,10 +5,15 @@ use web_sys::{ console, window, Node };
 use wasm_bindgen::JsCast;
 use js_sys::{ Array, Function };
 
+use rand::prelude::thread_rng;
+use rand::distributions::{Distribution, Uniform};
+use rand_distr::Normal;
+
 use std::f64::consts::PI;
 use core::ops::{ Index, IndexMut };
 use std::collections::VecDeque;
 use std::mem::swap;
+use std::iter;
 
 
 // When the `wee_alloc` feature is enabled, this uses `wee_alloc` as the global
@@ -37,7 +42,22 @@ pub fn gameloop() {
 struct Agent {
     pos_x: f64,
     pos_y: f64,
+    vel: f64,
     heading: f64,   // radians
+}
+impl Agent {
+    //fn in_rect_rng(size_w: usize, size_h: usize, rng: ThreadRng) -> Agent {
+    //    Agent { pos_x: Normal::from(0, size_w).sample(&mut rng) }
+    //    // TODO
+    //}
+    fn update(&mut self, data: &Vec2d, size_w: usize, size_h: usize) {
+        // TODO: sensor checks
+        self.pos_y = (self.pos_y + self.vel * self.heading.sin()).rem_euclid(size_h as f64);
+        self.pos_x = (self.pos_x + self.vel * self.heading.sin()).rem_euclid(size_w as f64);
+    }
+    fn deposit(&self) -> (i32, i32, u8) {
+        (self.pos_y.round() as i32, self.pos_x.round() as i32, 255)
+    }
 }
 
 //#[derive(Debug)]
@@ -79,46 +99,81 @@ struct Dish {
     agents: Vec<Agent>,
     data: Vec2d,
     data_alt: Vec2d,
+    canvas: web_sys::HtmlCanvasElement,
     //data: Vec<Vec<Pixel>>,
     //trail: Vec<Vec<u8>>,
 }
 impl Dish {
     fn new(size_w: usize, size_h: usize) -> Dish {
-        Dish { size_w, size_h, agents: Vec::new(/* todo */),
+        let doc = web_sys::window().unwrap().document().unwrap();
+
+        let mut rng = thread_rng();
+        let dist_y = Normal::new(0., size_h as f64).expect("Couldn't create normal distribution!");
+        let dist_x = Normal::new(0., size_w as f64).expect("Couldn't create normal distribution!");
+        let dist_hd = Uniform::from(0f64..PI*2.);
+        let agents = iter::repeat(()).take(100)
+            .map(|()| Agent {
+                pos_y: dist_y.sample(&mut rng),
+                pos_x: dist_x.sample(&mut rng),
+                vel: 10.,
+                heading: dist_hd.sample(&mut rng),
+            }).collect();
+
+        Dish { size_w, size_h,
+               agents,
                data:     Vec2d::new(size_w, size_h),
-               data_alt: Vec2d::new(size_w, size_h)}
+               data_alt: Vec2d::new(size_w, size_h),
+               canvas: doc.get_element_by_id("slime-canvas").unwrap()
+                    .dyn_into::<web_sys::HtmlCanvasElement>()
+                    .map_err(|_| ()).unwrap(),
+        }
     }
     fn render(&self, updates: u32) {
         // TODO: lets not get the canvas from scratch every time
-        let window = web_sys::window().unwrap();
-        let document = window.document().unwrap();
-        let canvas = document.get_element_by_id("slime-canvas").unwrap();
-        let canvas: web_sys::HtmlCanvasElement = canvas
-            .dyn_into::<web_sys::HtmlCanvasElement>()
-            .map_err(|_| ())
-            .unwrap();
-        let ctx = canvas
+        //let window = web_sys::window().unwrap();
+        //let document = window.document().unwrap();
+        //let canvas = document.get_element_by_id("slime-canvas").unwrap();
+        //let canvas: web_sys::HtmlCanvasElement = canvas
+        //    .dyn_into::<web_sys::HtmlCanvasElement>()
+        //    .map_err(|_| ())
+        //    .unwrap();
+        let ctx = self.canvas
             .get_context("2d")
             .unwrap()
             .unwrap()
             .dyn_into::<web_sys::CanvasRenderingContext2d>()
             .unwrap();
 
-        ctx.clear_rect(0., 0., canvas.width() as f64, canvas.height() as f64);
+        self.canvas.set_width(self.size_w as u32);
+        self.canvas.set_height(self.size_h as u32);
 
-        ctx.set_fill_style(&JsValue::from_str("green"));
-        console::log_1(&JsValue::from_str(&format!("amazing: {}", updates % 50)));
-        let updates = (updates % 50) as f64;
-        ctx.fill_rect(self.size_w as f64/2. - updates/2., self.size_h as f64/2. - updates/2., updates, updates);
+        ctx.clear_rect(0., 0., self.canvas.width() as f64, self.canvas.height() as f64);
+
+        ctx.set_fill_style(&JsValue::from_str("white"));
+        //console::log_1(&JsValue::from_str(&format!("amazing: {}", updates % 50)));
+        //let updates = (updates % 50) as f64;
+        //ctx.fill_rect(self.size_w as f64/2. - updates/2., self.size_h as f64/2. - updates/2., updates, updates);
+        console::log_1(&JsValue::from_str(&format!("num agents {}", self.agents.len())));
+        for y in 0..self.size_w as i32 {
+            for x in 0..self.size_h as i32 {
+                if self.data[(y, x)] > 0 {
+                    console::log_1(&JsValue::from_str(&format!("#{:02x?}{0:02x?}{0:02x?}", self.data[(y, x)])));
+                    ctx.set_fill_style(&JsValue::from_str(
+                            &format!("#{:02x?}{0:02x?}{0:02x?}", self.data[(y, x)])
+                        ));
+                    ctx.fill_rect(y as f64, x as f64, 1., 1.);
+                }
+            }
+        }
     }
 }
 impl Dish {
     fn update(&mut self, updates: u32) {
         for agent in &mut self.agents { // NTFS: probably expensive; parallelize
-            agent.update(&self.data);
+            agent.update(&self.data, self.size_w, self.size_h);
         }
         for agent in &self.agents {
-            let [y, x, val] = agent.deposit();
+            let (y, x, val) = agent.deposit();
             self.data[(y, x)].saturating_add(val);
         }
         self.diffuse();
@@ -154,7 +209,7 @@ impl Dish {
         //}
         for cy in 0..self.size_h as i32 {
             for cx in 0..self.size_w as i32 {
-                let sum = 0i32;
+                let mut sum = 0i32;
                 for y in cy-DIFFUSE_RADIUS..cy+DIFFUSE_RADIUS + 1 {
                     for x in cy-DIFFUSE_RADIUS..cy+DIFFUSE_RADIUS + 1 {
                         sum += self.data[(y, x)] as i32;
@@ -213,9 +268,11 @@ pub fn main_js() -> Result<(), JsValue> {
     // TODO: handle window resizing
     
 
-    let sim = Dish::new(width, height);
+    //let sim = Dish::new(width as usize, height as usize);
+    let sim = Dish::new(300, 100);
     game_loop(sim, 240, 0.1, |g| {
         // update fn
+        g.game.update(g.number_of_updates());
     }, |g| {
         // render fn
         g.game.render(g.number_of_updates());
