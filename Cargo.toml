@@ -40,7 +40,19 @@ game-loop = "0.7.3"
 # like the DOM.
 [dependencies.web-sys]
 version = "0.3.22"
-features = ["console", "Window", "Document", "Element", "Node", "CanvasRenderingContext2d", "HtmlCanvasElement"]
+features = [
+    "console",
+    "Window",
+    "Document",
+    "Element",
+    "Node",
+    "CanvasRenderingContext2d",
+    "WebGlBuffer",
+    "WebGlRenderingContext",
+    "WebGlProgram",
+    "WebGlShader",
+    "HtmlCanvasElement"
+]
 
 [dependencies.js-sys]
 version = "0.3.51"

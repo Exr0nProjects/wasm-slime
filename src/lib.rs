@@ -3,6 +3,7 @@ use game_loop::game_loop;
 
 use wasm_bindgen::prelude::*;
 use web_sys::{ console, window, Node };
+use web_sys::{ WebGlProgram, WebGlRenderingContext, WebGlShader };
 use wasm_bindgen::JsCast;
 
 use rand::prelude::{ thread_rng, ThreadRng, Rng };
@@ -21,7 +22,7 @@ use std::thread::sleep;
 // When the `wee_alloc` feature is enabled, this uses `wee_alloc` as the global
 // allocator.
 //
-// If you don't want to use `wee_alloc`, you can safely delete this.
+// If you don' t want to use `wee_alloc`, you can safely delete this.
 #[cfg(feature = "wee_alloc")]
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
@@ -329,6 +330,76 @@ impl Dish {
         ////    console::log_1(&JsValue::from_str("nuffin"));
         ////}
     }
+    fn render_webgl(&self, updates: u32) {
+        let ctx = self.canvas
+            .get_context("webgl")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::WebGlRenderingContext>()
+            .unwrap();
+
+        ctx.clear_color(0., 0., 0.2, 1.);
+        ctx.clear(WebGlRenderingContext::COLOR_BUFFER_BIT);
+
+        let vert_shader = compile_shader(
+            &ctx,
+            WebGlRenderingContext::VERTEX_SHADER,
+            r#"
+            attribute vec4 position;
+            void main() {
+                gl_Position = position;
+            }
+            "#,
+            ).expect("couldn't compile vert shader");
+        
+        let frag_shader = compile_shader(
+            &ctx,
+            WebGlRenderingContext::FRAGMENT_SHADER,
+            r#"
+            void main() {
+                gl_FragColor = vec4(0.2, 0.2, 0.5, 1.0);
+            }
+            "#,
+            ).expect("couldn't compile frag shader");
+        
+        let program = link_program(&ctx, &vert_shader, &frag_shader).expect("couldn't link webgl program");
+        ctx.use_program(Some(&program));
+        
+        let vertices: [f32; 9] = [-0.7, -0.7, 0.0, 0.7, -0.7, 0.0, 0.0, 0.7, 0.0];
+        
+        let buffer = ctx.create_buffer().ok_or("failed to create buffer").unwrap();
+        ctx.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&buffer));
+        
+        // Note that `Float32Array::view` is somewhat dangerous (hence the
+        // `unsafe`!). This is creating a raw view into our module's
+        // `WebAssembly.Memory` buffer, but if we allocate more pages for ourself
+        // (aka do a memory allocation in Rust) it'll cause the buffer to change,
+        // causing the `Float32Array` to be invalid.
+        //
+        // As a result, after `Float32Array::view` we have to be very careful not to
+        // do any memory allocations before it's dropped.
+        unsafe {
+            let vert_array = js_sys::Float32Array::view(&vertices);
+        
+            ctx.buffer_data_with_array_buffer_view(
+                WebGlRenderingContext::ARRAY_BUFFER,
+                &vert_array,
+                WebGlRenderingContext::STATIC_DRAW,
+                );
+        }
+        
+        ctx.vertex_attrib_pointer_with_i32(0, 3, WebGlRenderingContext::FLOAT, false, 0, 0);
+        ctx.enable_vertex_attrib_array(0);
+        
+        //ctx.clear_color(0.0, 0.0, 0.0, 1.0);
+        ctx.clear(WebGlRenderingContext::COLOR_BUFFER_BIT);
+        
+        ctx.draw_arrays(
+            WebGlRenderingContext::TRIANGLES,
+            0,
+            (vertices.len() / 3) as i32,
+        );
+    }
 }
 impl Dish {
     fn update(&mut self, updates: u32) {
@@ -404,7 +475,7 @@ impl Dish {
 #[wasm_bindgen(start)]
 pub fn main_js() -> Result<(), JsValue> {
     // This provides better error messages in debug mode.
-    // It's disabled in release mode so it doesn't bloat up the file size.
+    // It'>s disabled in release mode so it doesn't bloat up the file size.
     #[cfg(debug_assertions)]
     console_error_panic_hook::set_once();
 
@@ -433,8 +504,64 @@ pub fn main_js() -> Result<(), JsValue> {
         g.game.update(g.number_of_updates());
     }, |g| {
         // render fn
-        g.game.render(g.number_of_updates());
+        g.game.render_webgl(g.number_of_updates());
+        //g.game.render(g.number_of_updates());
     });
 
     Ok(())
 }
+
+
+
+
+// BEGIN YOINK https://rustwasm.github.io/wasm-bindgen/examples/webgl.html
+ pub fn compile_shader(
+    context: &WebGlRenderingContext,
+    shader_type: u32,
+    source: &str,
+) -> Result<WebGlShader, String> {
+    let shader = context
+        .create_shader(shader_type)
+        .ok_or_else(|| String::from("Unable to create shader object"))?;
+    context.shader_source(&shader, source);
+    context.compile_shader(&shader);
+
+    if context
+        .get_shader_parameter(&shader, WebGlRenderingContext::COMPILE_STATUS)
+        .as_bool()
+        .unwrap_or(false)
+    {
+        Ok(shader)
+    } else {
+        Err(context
+            .get_shader_info_log(&shader)
+            .unwrap_or_else(|| String::from("Unknown error creating shader")))
+    }
+}
+
+pub fn link_program(
+    context: &WebGlRenderingContext,
+    vert_shader: &WebGlShader,
+    frag_shader: &WebGlShader,
+) -> Result<WebGlProgram, String> {
+    let program = context
+        .create_program()
+        .ok_or_else(|| String::from("Unable to create shader object"))?;
+
+    context.attach_shader(&program, vert_shader);
+    context.attach_shader(&program, frag_shader);
+    context.link_program(&program);
+
+    if context
+        .get_program_parameter(&program, WebGlRenderingContext::LINK_STATUS)
+        .as_bool()
+        .unwrap_or(false)
+    {
+        Ok(program)
+    } else {
+        Err(context
+            .get_program_info_log(&program)
+            .unwrap_or_else(|| String::from("Unknown error creating program object")))
+    }
+}
+// END YOINK
