@@ -28,13 +28,13 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 
 const FRAMERATE: f64 = 100.;
-const NUM_AGENTS: usize = 20;
+const NUM_AGENTS: usize = 800;
 const DIFFUSE_RADIUS: i32 = 1; // diffuse in 3x3 square
 const SENSOR_RADIUS: f64 = 2.;
-const SENSOR_ANGLE: f64 = PI/4.;
+const SENSOR_ANGLE: f64 = PI/3.;
 const SENSOR_DISTANCE: f64 = 8.;
 const TURN_ANGLE: f64 = PI/12.;
-const VELOCITY: f64 = 1.2;
+const VELOCITY: f64 = 2.;
 
 #[derive(Debug)]
 struct Agent {
@@ -233,109 +233,107 @@ impl Dish {
                 }
             }
         }
-        ctx.set_line_width(2.);
-        for agent in &self.agents {
-            ctx.set_fill_style(&JsValue::from_str("green"));
-            //ctx.fill_rect(agent.pos_x*10.-2., agent.pos_y*10.-2., 4., 4.);
-            
-
-            //// standard (but broken)
-            //ctx.set_fill_style(&JsValue::from_str(if agent.prev > 0 { "#ff000033" } else { "#0000ff33" }));
-            //ctx.fill_rect(agent.pos_x + SENSOR_DISTANCE * agent.heading + SENSOR_ANGLE.cos() - SENSOR_RADIUS ,
-            //              agent.pos_y + SENSOR_DISTANCE * agent.heading + SENSOR_ANGLE.sin() - SENSOR_RADIUS ,
-            //              SENSOR_RADIUS * 2. + 1., SENSOR_RADIUS * 2. + 1.);
-            //ctx.set_fill_style(&JsValue::from_str("white"));
-            //ctx.fill_text(&format!("left: {}", agent.lef),
-            //              agent.pos_x + SENSOR_DISTANCE * agent.heading + SENSOR_ANGLE.cos() - SENSOR_RADIUS ,
-            //              agent.pos_y + SENSOR_DISTANCE * agent.heading + SENSOR_ANGLE.sin() - SENSOR_RADIUS );
-            //
-            //ctx.set_fill_style(&JsValue::from_str(if agent.prev < 0 { "#ff000033" } else { "#0000ff33" }));
-            //ctx.fill_rect(agent.pos_x + SENSOR_DISTANCE * agent.heading - SENSOR_ANGLE.cos() - SENSOR_RADIUS ,
-            //              agent.pos_y + SENSOR_DISTANCE * agent.heading - SENSOR_ANGLE.sin() - SENSOR_RADIUS ,
-            //              SENSOR_RADIUS * 2. + 1., SENSOR_RADIUS * 2. + 1.);
-            //ctx.set_fill_style(&JsValue::from_str("white"));
-            //ctx.fill_text(&format!("right: {}", agent.rig),
-            //              agent.pos_x + SENSOR_DISTANCE * agent.heading - SENSOR_ANGLE.cos() - SENSOR_RADIUS ,
-            //              agent.pos_y + SENSOR_DISTANCE * agent.heading - SENSOR_ANGLE.sin() - SENSOR_RADIUS );
-            //
-            //ctx.set_fill_style(&JsValue::from_str(if agent.prev == 0 { "#ff000033" } else { "#00ff0033" }));
-            //ctx.fill_rect(agent.pos_x + SENSOR_DISTANCE * agent.heading.cos() - SENSOR_RADIUS ,
-            //              agent.pos_y + SENSOR_DISTANCE * agent.heading.sin() - SENSOR_RADIUS ,
-            //              SENSOR_RADIUS * 2. + 1., SENSOR_RADIUS * 2. + 1.);
-            //ctx.set_fill_style(&JsValue::from_str("white"));
-            //ctx.fill_text(&format!("center: {}", agent.fwd),
-            //              agent.pos_x + SENSOR_DISTANCE * agent.heading.cos() - SENSOR_RADIUS ,
-            //              agent.pos_y + SENSOR_DISTANCE * agent.heading.sin() - SENSOR_RADIUS );
-            //
-            //ctx.begin_path();
-            //ctx.set_stroke_style(&JsValue::from_str("blue"));
-            //ctx.move_to(agent.pos_x + SENSOR_DISTANCE * (agent.heading + SENSOR_ANGLE).cos() ,
-            //            agent.pos_y + SENSOR_DISTANCE * (agent.heading + SENSOR_ANGLE).sin() );
-            //ctx.line_to(agent.pos_x, agent.pos_y);
-            //ctx.line_to(agent.pos_x + SENSOR_DISTANCE * (agent.heading - SENSOR_ANGLE).cos() ,
-            //            agent.pos_y + SENSOR_DISTANCE * (agent.heading - SENSOR_ANGLE).sin() );
-            //ctx.stroke();
-            //// center line
-            //ctx.set_stroke_style(&JsValue::from_str("green"));
-            //ctx.begin_path();
-            //ctx.move_to(agent.pos_x, agent.pos_y);
-            //ctx.line_to(agent.pos_x + SENSOR_DISTANCE * agent.heading.cos() ,
-            //            agent.pos_y + SENSOR_DISTANCE * agent.heading.sin() );
-            //ctx.stroke();
-
-            // times 10
-            //// other sensors
-            //ctx.set_fill_style(&JsValue::from_str(if agent.prev > 0 { "#ff000033" } else { "#0000ff33" }));
-            //ctx.fill_rect((agent.pos_x + SENSOR_DISTANCE * (agent.heading + SENSOR_ANGLE).cos() - SENSOR_RADIUS) *10.,
-            //              (agent.pos_y + SENSOR_DISTANCE * (agent.heading + SENSOR_ANGLE).sin() - SENSOR_RADIUS) *10.,
-            //              (SENSOR_RADIUS * 2. + 1.)*10., (SENSOR_RADIUS * 2. + 1.)*10.);
-            //ctx.set_fill_style(&JsValue::from_str("white"));
-            //ctx.fill_text(&format!("left: {}", agent.lef),
-            //              (agent.pos_x + SENSOR_DISTANCE * (agent.heading + SENSOR_ANGLE).cos() - SENSOR_RADIUS) *10.,
-            //              (agent.pos_y + SENSOR_DISTANCE * (agent.heading + SENSOR_ANGLE).sin() - SENSOR_RADIUS) *10.);
-            //
-            //ctx.set_fill_style(&JsValue::from_str(if agent.prev < 0 { "#ff000033" } else { "#0000ff33" }));
-            //ctx.fill_rect((agent.pos_x + SENSOR_DISTANCE * (agent.heading - SENSOR_ANGLE).cos() - SENSOR_RADIUS) *10.,
-            //              (agent.pos_y + SENSOR_DISTANCE * (agent.heading - SENSOR_ANGLE).sin() - SENSOR_RADIUS) *10.,
-            //              (SENSOR_RADIUS * 2. + 1.)*10., (SENSOR_RADIUS * 2. + 1.)*10.);
-            //ctx.set_fill_style(&JsValue::from_str("white"));
-            //ctx.fill_text(&format!("right: {}", agent.rig),
-            //              (agent.pos_x + SENSOR_DISTANCE * (agent.heading - SENSOR_ANGLE).cos() - SENSOR_RADIUS) *10.,
-            //              (agent.pos_y + SENSOR_DISTANCE * (agent.heading - SENSOR_ANGLE).sin() - SENSOR_RADIUS) *10.);
-            //
-            //ctx.set_fill_style(&JsValue::from_str(if agent.prev == 0 { "#ff000033" } else { "#00ff0033" }));
-            //ctx.fill_rect((agent.pos_x + SENSOR_DISTANCE * (agent.heading).cos() - SENSOR_RADIUS) *10.,
-            //              (agent.pos_y + SENSOR_DISTANCE * (agent.heading).sin() - SENSOR_RADIUS) *10., (SENSOR_RADIUS * 2. + 1.)*10., (SENSOR_RADIUS * 2. + 1.)*10.);
-            //ctx.set_fill_style(&JsValue::from_str("white"));
-            //ctx.fill_text(&format!("center: {}", agent.fwd),
-            //              (agent.pos_x + SENSOR_DISTANCE * (agent.heading).cos() - SENSOR_RADIUS) *10.,
-            //              (agent.pos_y + SENSOR_DISTANCE * (agent.heading).sin() - SENSOR_RADIUS) *10.);
-            //
-            //ctx.begin_path();
-            //ctx.set_stroke_style(&JsValue::from_str("blue"));
-            //ctx.move_to((agent.pos_x + SENSOR_DISTANCE * (agent.heading + SENSOR_ANGLE).cos()) *10.,
-            //            (agent.pos_y + SENSOR_DISTANCE * (agent.heading + SENSOR_ANGLE).sin()) *10.);
-            //ctx.line_to(agent.pos_x*10., agent.pos_y*10.);
-            //ctx.line_to((agent.pos_x + SENSOR_DISTANCE * (agent.heading - SENSOR_ANGLE).cos()) *10.,
-            //            (agent.pos_y + SENSOR_DISTANCE * (agent.heading - SENSOR_ANGLE).sin()) *10.);
-            //ctx.stroke();
-            //// center line
-            //ctx.set_stroke_style(&JsValue::from_str("green"));
-            //ctx.begin_path();
-            //ctx.move_to(agent.pos_x*10., agent.pos_y*10.);
-            //ctx.line_to((agent.pos_x + SENSOR_DISTANCE * agent.heading.cos()) *10.,
-            //            (agent.pos_y + SENSOR_DISTANCE * agent.heading.sin()) *10.);
-            //ctx.stroke();
-        }
-        //for i in 0..2e5 as i32 {
-        //    console::log_1(&JsValue::from_str("nuffin"));
+        //ctx.set_line_width(2.);
+        //for agent in &self.agents {
+        //    ctx.set_fill_style(&JsValue::from_str("green"));
+        //    //ctx.fill_rect(agent.pos_x*10.-2., agent.pos_y*10.-2., 4., 4.);
+        //    
+        //
+        //    //// standard (but broken)
+        //    //ctx.set_fill_style(&JsValue::from_str(if agent.prev > 0 { "#ff000033" } else { "#0000ff33" }));
+        //    //ctx.fill_rect(agent.pos_x + SENSOR_DISTANCE * agent.heading + SENSOR_ANGLE.cos() - SENSOR_RADIUS ,
+        //    //              agent.pos_y + SENSOR_DISTANCE * agent.heading + SENSOR_ANGLE.sin() - SENSOR_RADIUS ,
+        //    //              SENSOR_RADIUS * 2. + 1., SENSOR_RADIUS * 2. + 1.);
+        //    //ctx.set_fill_style(&JsValue::from_str("white"));
+        //    //ctx.fill_text(&format!("left: {}", agent.lef),
+        //    //              agent.pos_x + SENSOR_DISTANCE * agent.heading + SENSOR_ANGLE.cos() - SENSOR_RADIUS ,
+        //    //              agent.pos_y + SENSOR_DISTANCE * agent.heading + SENSOR_ANGLE.sin() - SENSOR_RADIUS );
+        //    //
+        //    //ctx.set_fill_style(&JsValue::from_str(if agent.prev < 0 { "#ff000033" } else { "#0000ff33" }));
+        //    //ctx.fill_rect(agent.pos_x + SENSOR_DISTANCE * agent.heading - SENSOR_ANGLE.cos() - SENSOR_RADIUS ,
+        //    //              agent.pos_y + SENSOR_DISTANCE * agent.heading - SENSOR_ANGLE.sin() - SENSOR_RADIUS ,
+        //    //              SENSOR_RADIUS * 2. + 1., SENSOR_RADIUS * 2. + 1.);
+        //    //ctx.set_fill_style(&JsValue::from_str("white"));
+        //    //ctx.fill_text(&format!("right: {}", agent.rig),
+        //    //              agent.pos_x + SENSOR_DISTANCE * agent.heading - SENSOR_ANGLE.cos() - SENSOR_RADIUS ,
+        //    //              agent.pos_y + SENSOR_DISTANCE * agent.heading - SENSOR_ANGLE.sin() - SENSOR_RADIUS );
+        //    //
+        //    //ctx.set_fill_style(&JsValue::from_str(if agent.prev == 0 { "#ff000033" } else { "#00ff0033" }));
+        //    //ctx.fill_rect(agent.pos_x + SENSOR_DISTANCE * agent.heading.cos() - SENSOR_RADIUS ,
+        //    //              agent.pos_y + SENSOR_DISTANCE * agent.heading.sin() - SENSOR_RADIUS ,
+        //    //              SENSOR_RADIUS * 2. + 1., SENSOR_RADIUS * 2. + 1.);
+        //    //ctx.set_fill_style(&JsValue::from_str("white"));
+        //    //ctx.fill_text(&format!("center: {}", agent.fwd),
+        //    //              agent.pos_x + SENSOR_DISTANCE * agent.heading.cos() - SENSOR_RADIUS ,
+        //    //              agent.pos_y + SENSOR_DISTANCE * agent.heading.sin() - SENSOR_RADIUS );
+        //    //
+        //    //ctx.begin_path();
+        //    //ctx.set_stroke_style(&JsValue::from_str("blue"));
+        //    //ctx.move_to(agent.pos_x + SENSOR_DISTANCE * (agent.heading + SENSOR_ANGLE).cos() ,
+        //    //            agent.pos_y + SENSOR_DISTANCE * (agent.heading + SENSOR_ANGLE).sin() );
+        //    //ctx.line_to(agent.pos_x, agent.pos_y);
+        //    //ctx.line_to(agent.pos_x + SENSOR_DISTANCE * (agent.heading - SENSOR_ANGLE).cos() ,
+        //    //            agent.pos_y + SENSOR_DISTANCE * (agent.heading - SENSOR_ANGLE).sin() );
+        //    //ctx.stroke();
+        //    //// center line
+        //    //ctx.set_stroke_style(&JsValue::from_str("green"));
+        //    //ctx.begin_path();
+        //    //ctx.move_to(agent.pos_x, agent.pos_y);
+        //    //ctx.line_to(agent.pos_x + SENSOR_DISTANCE * agent.heading.cos() ,
+        //    //            agent.pos_y + SENSOR_DISTANCE * agent.heading.sin() );
+        //    //ctx.stroke();
+        //
+        //    // times 10
+        //    //// other sensors
+        //    //ctx.set_fill_style(&JsValue::from_str(if agent.prev > 0 { "#ff000033" } else { "#0000ff33" }));
+        //    //ctx.fill_rect((agent.pos_x + SENSOR_DISTANCE * (agent.heading + SENSOR_ANGLE).cos() - SENSOR_RADIUS) *10.,
+        //    //              (agent.pos_y + SENSOR_DISTANCE * (agent.heading + SENSOR_ANGLE).sin() - SENSOR_RADIUS) *10.,
+        //    //              (SENSOR_RADIUS * 2. + 1.)*10., (SENSOR_RADIUS * 2. + 1.)*10.);
+        //    //ctx.set_fill_style(&JsValue::from_str("white"));
+        //    //ctx.fill_text(&format!("left: {}", agent.lef),
+        //    //              (agent.pos_x + SENSOR_DISTANCE * (agent.heading + SENSOR_ANGLE).cos() - SENSOR_RADIUS) *10.,
+        //    //              (agent.pos_y + SENSOR_DISTANCE * (agent.heading + SENSOR_ANGLE).sin() - SENSOR_RADIUS) *10.);
+        //    //
+        //    //ctx.set_fill_style(&JsValue::from_str(if agent.prev < 0 { "#ff000033" } else { "#0000ff33" }));
+        //    //ctx.fill_rect((agent.pos_x + SENSOR_DISTANCE * (agent.heading - SENSOR_ANGLE).cos() - SENSOR_RADIUS) *10.,
+        //    //              (agent.pos_y + SENSOR_DISTANCE * (agent.heading - SENSOR_ANGLE).sin() - SENSOR_RADIUS) *10.,
+        //    //              (SENSOR_RADIUS * 2. + 1.)*10., (SENSOR_RADIUS * 2. + 1.)*10.);
+        //    //ctx.set_fill_style(&JsValue::from_str("white"));
+        //    //ctx.fill_text(&format!("right: {}", agent.rig),
+        //    //              (agent.pos_x + SENSOR_DISTANCE * (agent.heading - SENSOR_ANGLE).cos() - SENSOR_RADIUS) *10.,
+        //    //              (agent.pos_y + SENSOR_DISTANCE * (agent.heading - SENSOR_ANGLE).sin() - SENSOR_RADIUS) *10.);
+        //    //
+        //    //ctx.set_fill_style(&JsValue::from_str(if agent.prev == 0 { "#ff000033" } else { "#00ff0033" }));
+        //    //ctx.fill_rect((agent.pos_x + SENSOR_DISTANCE * (agent.heading).cos() - SENSOR_RADIUS) *10.,
+        //    //              (agent.pos_y + SENSOR_DISTANCE * (agent.heading).sin() - SENSOR_RADIUS) *10., (SENSOR_RADIUS * 2. + 1.)*10., (SENSOR_RADIUS * 2. + 1.)*10.);
+        //    //ctx.set_fill_style(&JsValue::from_str("white"));
+        //    //ctx.fill_text(&format!("center: {}", agent.fwd),
+        //    //              (agent.pos_x + SENSOR_DISTANCE * (agent.heading).cos() - SENSOR_RADIUS) *10.,
+        //    //              (agent.pos_y + SENSOR_DISTANCE * (agent.heading).sin() - SENSOR_RADIUS) *10.);
+        //    //
+        //    //ctx.begin_path();
+        //    //ctx.set_stroke_style(&JsValue::from_str("blue"));
+        //    //ctx.move_to((agent.pos_x + SENSOR_DISTANCE * (agent.heading + SENSOR_ANGLE).cos()) *10.,
+        //    //            (agent.pos_y + SENSOR_DISTANCE * (agent.heading + SENSOR_ANGLE).sin()) *10.);
+        //    //ctx.line_to(agent.pos_x*10., agent.pos_y*10.);
+        //    //ctx.line_to((agent.pos_x + SENSOR_DISTANCE * (agent.heading - SENSOR_ANGLE).cos()) *10.,
+        //    //            (agent.pos_y + SENSOR_DISTANCE * (agent.heading - SENSOR_ANGLE).sin()) *10.);
+        //    //ctx.stroke();
+        //    //// center line
+        //    //ctx.set_stroke_style(&JsValue::from_str("green"));
+        //    //ctx.begin_path();
+        //    //ctx.move_to(agent.pos_x*10., agent.pos_y*10.);
+        //    //ctx.line_to((agent.pos_x + SENSOR_DISTANCE * agent.heading.cos()) *10.,
+        //    //            (agent.pos_y + SENSOR_DISTANCE * agent.heading.sin()) *10.);
+        //    //ctx.stroke();
         //}
+        ////for i in 0..2e5 as i32 {
+        ////    console::log_1(&JsValue::from_str("nuffin"));
+        ////}
     }
 }
 impl Dish {
     fn update(&mut self, updates: u32) {
-        self.diffuse();
-        self.decay();
         let dist = Uniform::new(0., 1.);
         for agent in &mut self.agents { // NTFS: probably expensive; parallelize
             agent.update(&self.data, self.size_w, self.size_h, self.rng.sample(dist));
@@ -343,8 +341,12 @@ impl Dish {
         for agent in &self.agents {
             let (y, x, val) = agent.deposit();
             self.data[(y, x)] = self.data[(y, x)].saturating_add(val);
+            self.active_cells.push_back((y, x));
             //console::log_1(&JsValue::from_str(&format!("val = {} at {}, {}", val, x, y)));
         }
+        self.diffuse();
+        //self.diffuse_nsquared();
+        self.decay();
     }
     fn diffuse_nsquared(&mut self) {
         for cy in 0..self.size_h as i32 {
@@ -364,17 +366,19 @@ impl Dish {
         //console::log_1(&JsValue::from_str(&format!("size = {} {}", self.size_w, self.size_h)));
         // SPFA style
         self.visited.for_each(|x| *x = false); // should hopefully compile to memset: https://users.rust-lang.org/t/fastest-way-to-zero-an-array/39222
+        self.data_alt.for_each(|x| *x = 0);
+
         for c in &self.active_cells {
             self.visited[*c] = true;
         }
         let mut active_next = VecDeque::new();
         loop {
-            console::log_1(&JsValue::from_str(&format!("spfa len = {}", self.active_cells.len())));
+            //console::log_1(&JsValue::from_str(&format!("spfa len = {}", self.active_cells.len())));
             if let Some((cy, cx)) = self.active_cells.pop_front() {
                 let mut sum = 0i32;
-                for y in cy-DIFFUSE_RADIUS..cy+DIFFUSE_RADIUS + 1 {
-                    for x in cx-DIFFUSE_RADIUS..cx+DIFFUSE_RADIUS + 1 {
-                        if !self.visited[(y, x)] && self.data[(y, x)] > 0 {
+                for y in cy-DIFFUSE_RADIUS..=cy+DIFFUSE_RADIUS {
+                    for x in cx-DIFFUSE_RADIUS..=cx+DIFFUSE_RADIUS {
+                        if !self.visited[(y, x)] && self.data[(cy, cx)] > 0 {
                             self.visited[(y, x)] = true;
                             self.active_cells.push_back((y, x));
                         }
