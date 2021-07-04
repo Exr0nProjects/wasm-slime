@@ -13,6 +13,8 @@ use std::f64::consts::PI;
 use core::ops::{ Index, IndexMut };
 use std::mem::swap;
 use std::iter;
+use std::time::Duration;
+use std::thread::sleep;
 
 
 // When the `wee_alloc` feature is enabled, this uses `wee_alloc` as the global
@@ -25,12 +27,13 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 
 const FRAMERATE: f64 = 100.;
+const NUM_AGENTS: usize = 20;
 const DIFFUSE_RADIUS: i32 = 1; // diffuse in 3x3 square
-const SENSOR_RADIUS: f64 = 3.;
-const SENSOR_ANGLE: f64 = PI/6.;
-const SENSOR_DISTANCE: f64 = 5.;
-const TURN_ANGLE: f64 = PI/10.;
-const VELOCITY: f64 = 2.;
+const SENSOR_RADIUS: f64 = 2.;
+const SENSOR_ANGLE: f64 = PI/4.;
+const SENSOR_DISTANCE: f64 = 8.;
+const TURN_ANGLE: f64 = PI/12.;
+const VELOCITY: f64 = 1.2;
 
 #[derive(Debug)]
 struct Agent {
@@ -38,9 +41,13 @@ struct Agent {
     pos_y: f64,
     vel: f64,
     heading: f64,   // radians
+    prev: i32,
+    lef: i32,
+    rig: i32,
+    fwd: i32,
 }
 impl Agent {
-    fn update(&mut self, data: &Vec2d, size_w: usize, size_h: usize, rand: f64) {
+    fn update(&mut self, data: &Vec2d, size_w: usize, size_h: usize, rand: f64) -> i32 {
         assert!(0. <= rand && rand < 1.);
         let [lef, fwd, rig] = [(self.pos_x + SENSOR_DISTANCE * (self.heading - SENSOR_ANGLE).cos(),
                             self.pos_y + SENSOR_DISTANCE * (self.heading - SENSOR_ANGLE).sin()),
@@ -59,6 +66,8 @@ impl Agent {
             sum
         });
 
+        self.prev = 0;
+
         // TODO: use the actual random algo
         if      fwd > lef && fwd > rig {}
         else if fwd < lef && fwd < rig { 
@@ -67,15 +76,20 @@ impl Agent {
             } else {
                 self.heading -= TURN_ANGLE;
             }
-        } else if lef < rig {
+        } else if lef > rig {
+            self.prev = -1;
             self.heading += TURN_ANGLE;
         } else if rig > lef {
+            self.prev = 1;
             self.heading -= TURN_ANGLE;
         }
+
+        self.lef = lef; self.rig = rig; self.fwd = fwd;
 
         // TODO: sensor checks
         self.pos_y = (self.pos_y + self.vel * self.heading.sin()).rem_euclid(size_h as f64);
         self.pos_x = (self.pos_x + self.vel * self.heading.cos()).rem_euclid(size_w as f64);
+        self.prev
     }
     fn deposit(&self) -> (i32, i32, u8) {
         (self.pos_y.round() as i32, self.pos_x.round() as i32, 255)
@@ -129,7 +143,7 @@ impl Dish {
         //    let dist_y = Normal::new(0., size_h as f64).expect("Couldn't create normal distribution!");
         //    let dist_x = Normal::new(0., size_w as f64).expect("Couldn't create normal distribution!");
         //    let dist_hd = Uniform::from(0f64..PI*2.);
-        //    iter::repeat(()).take(500)
+        //    iter::repeat(()).take(NUM_AGENTS)
         //        .map(|()| Agent {
         //        pos_y: dist_y.sample(&mut rng),
         //        pos_x: dist_x.sample(&mut rng),
@@ -139,16 +153,17 @@ impl Dish {
         //};
 
         let agents = { // circular
-            let circle_radius = (size_w.min(size_h)* 4/ 10) as f64;
+            let circle_radius = (size_w.min(size_h)* 2/ 10) as f64;
             let dist_hd = Uniform::from(0f64..PI*2.);
-            iter::repeat(()).take(500)
+            iter::repeat(()).take(NUM_AGENTS)
                 .map(|()| {
                 let hd = dist_hd.sample(&mut rng);
                 Agent {
-                    pos_y: circle_radius*hd.sin() + size_h as f64/ 2.,
-                    pos_x: circle_radius*hd.cos() + size_w as f64/ 2.,
+                    pos_y: circle_radius*hd.sin() + size_h as f64/ 4.,
+                    pos_x: circle_radius*hd.cos() + size_w as f64/ 4.,
                     vel: VELOCITY,
-                    heading: hd + PI/2.,
+                    heading: (hd + PI/2.).rem_euclid(PI*2.),
+                    prev: 0, lef: 0, rig: 0, fwd: 0,
                 }
                 }).collect()
         };
@@ -184,9 +199,59 @@ impl Dish {
                     ctx.set_fill_style(&JsValue::from_str(
                             &format!("#{:02x?}{0:02x?}{0:02x?}", self.data[(y, x)])
                         ));
-                    ctx.fill_rect(x as f64, y as f64, 1., 1.);
+                    ctx.fill_rect((x*10 - 5) as f64, (y*10 - 5) as f64, 10., 10.);
                 }
             }
+        }
+        ctx.set_line_width(2.);
+        for agent in &self.agents {
+            ctx.set_fill_style(&JsValue::from_str("green"));
+            ctx.fill_rect(agent.pos_x*10.-2., agent.pos_y*10.-2., 4., 4.);
+            // other sensors
+            ctx.set_fill_style(&JsValue::from_str(if agent.prev > 0 { "#ff000033" } else { "#0000ff33" }));
+            ctx.fill_rect((agent.pos_x + SENSOR_DISTANCE * (agent.heading + SENSOR_ANGLE).cos() - SENSOR_RADIUS) *10.,
+                          (agent.pos_y + SENSOR_DISTANCE * (agent.heading + SENSOR_ANGLE).sin() - SENSOR_RADIUS) *10.,
+                          (SENSOR_RADIUS * 2. + 1.)*10., (SENSOR_RADIUS * 2. + 1.)*10.);
+            ctx.set_fill_style(&JsValue::from_str("white"));
+            ctx.fill_text(&format!("left: {}", agent.lef),
+                          (agent.pos_x + SENSOR_DISTANCE * (agent.heading + SENSOR_ANGLE).cos() - SENSOR_RADIUS) *10.,
+                          (agent.pos_y + SENSOR_DISTANCE * (agent.heading + SENSOR_ANGLE).sin() - SENSOR_RADIUS) *10.);
+
+            ctx.set_fill_style(&JsValue::from_str(if agent.prev < 0 { "#ff000033" } else { "#0000ff33" }));
+            ctx.fill_rect((agent.pos_x + SENSOR_DISTANCE * (agent.heading - SENSOR_ANGLE).cos() - SENSOR_RADIUS) *10.,
+                          (agent.pos_y + SENSOR_DISTANCE * (agent.heading - SENSOR_ANGLE).sin() - SENSOR_RADIUS) *10.,
+                          (SENSOR_RADIUS * 2. + 1.)*10., (SENSOR_RADIUS * 2. + 1.)*10.);
+            ctx.set_fill_style(&JsValue::from_str("white"));
+            ctx.fill_text(&format!("right: {}", agent.rig),
+                          (agent.pos_x + SENSOR_DISTANCE * (agent.heading - SENSOR_ANGLE).cos() - SENSOR_RADIUS) *10.,
+                          (agent.pos_y + SENSOR_DISTANCE * (agent.heading - SENSOR_ANGLE).sin() - SENSOR_RADIUS) *10.);
+
+            ctx.set_fill_style(&JsValue::from_str(if agent.prev == 0 { "#ff000033" } else { "#00ff0033" }));
+            ctx.fill_rect((agent.pos_x + SENSOR_DISTANCE * (agent.heading).cos() - SENSOR_RADIUS) *10.,
+                          (agent.pos_y + SENSOR_DISTANCE * (agent.heading).sin() - SENSOR_RADIUS) *10., (SENSOR_RADIUS * 2. + 1.)*10., (SENSOR_RADIUS * 2. + 1.)*10.);
+            ctx.set_fill_style(&JsValue::from_str("white"));
+            ctx.fill_text(&format!("center: {}", agent.fwd),
+                          (agent.pos_x + SENSOR_DISTANCE * (agent.heading).cos() - SENSOR_RADIUS) *10.,
+                          (agent.pos_y + SENSOR_DISTANCE * (agent.heading).sin() - SENSOR_RADIUS) *10.);
+
+            ctx.begin_path();
+            ctx.set_stroke_style(&JsValue::from_str("blue"));
+            ctx.move_to((agent.pos_x + SENSOR_DISTANCE * (agent.heading + SENSOR_ANGLE).cos()) *10.,
+                        (agent.pos_y + SENSOR_DISTANCE * (agent.heading + SENSOR_ANGLE).sin()) *10.);
+            ctx.line_to(agent.pos_x*10., agent.pos_y*10.);
+            ctx.line_to((agent.pos_x + SENSOR_DISTANCE * (agent.heading - SENSOR_ANGLE).cos()) *10.,
+                        (agent.pos_y + SENSOR_DISTANCE * (agent.heading - SENSOR_ANGLE).sin()) *10.);
+            ctx.stroke();
+            // center line
+            ctx.set_stroke_style(&JsValue::from_str("green"));
+            ctx.begin_path();
+            ctx.move_to(agent.pos_x*10., agent.pos_y*10.);
+            ctx.line_to((agent.pos_x + SENSOR_DISTANCE * agent.heading.cos()) *10.,
+                        (agent.pos_y + SENSOR_DISTANCE * agent.heading.sin()) *10.);
+            ctx.stroke();
+        }
+        for i in 0..2e5 as i32 {
+            console::log_1(&JsValue::from_str("nuffin"));
         }
     }
 }
@@ -254,9 +319,9 @@ pub fn main_js() -> Result<(), JsValue> {
      
     // TODO: handle window resizing
     
-    let sim = Dish::new(width as usize, height as usize);
+    let sim = Dish::new((width/10) as usize, (height/10) as usize);
     //let sim = Dish::new(300, 100);
-    game_loop(sim, 30, 0.02, |g| {
+    game_loop(sim, 5, 0.2, |g| {
         // update fn
         g.game.update(g.number_of_updates());
     }, |g| {
