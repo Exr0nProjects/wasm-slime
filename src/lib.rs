@@ -26,10 +26,11 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 const FRAMERATE: f64 = 100.;
 const DIFFUSE_RADIUS: i32 = 1; // diffuse in 3x3 square
-const SENSOR_RADIUS: f64 = 1.;
+const SENSOR_RADIUS: f64 = 3.;
 const SENSOR_ANGLE: f64 = PI/6.;
 const SENSOR_DISTANCE: f64 = 5.;
 const TURN_ANGLE: f64 = PI/10.;
+const VELOCITY: f64 = 2.;
 
 #[derive(Debug)]
 struct Agent {
@@ -58,7 +59,7 @@ impl Agent {
             sum
         });
 
-        // TODO: random steer strength
+        // TODO: use the actual random algo
         if      fwd > lef && fwd > rig {}
         else if fwd < lef && fwd < rig { 
             if rand < lef as f64 / (lef + rig) as f64 {
@@ -123,16 +124,34 @@ impl Dish {
         let doc = web_sys::window().unwrap().document().unwrap();
 
         let mut rng = thread_rng();
-        let dist_y = Normal::new(0., size_h as f64).expect("Couldn't create normal distribution!");
-        let dist_x = Normal::new(0., size_w as f64).expect("Couldn't create normal distribution!");
-        let dist_hd = Uniform::from(0f64..PI*2.);
-        let agents = iter::repeat(()).take(500)
-            .map(|()| Agent {
-                pos_y: dist_y.sample(&mut rng),
-                pos_x: dist_x.sample(&mut rng),
-                vel: 2.,
-                heading: dist_hd.sample(&mut rng),
-            }).collect();
+
+        //let agents = { // rect random
+        //    let dist_y = Normal::new(0., size_h as f64).expect("Couldn't create normal distribution!");
+        //    let dist_x = Normal::new(0., size_w as f64).expect("Couldn't create normal distribution!");
+        //    let dist_hd = Uniform::from(0f64..PI*2.);
+        //    iter::repeat(()).take(500)
+        //        .map(|()| Agent {
+        //        pos_y: dist_y.sample(&mut rng),
+        //        pos_x: dist_x.sample(&mut rng),
+        //        vel: VELOCITY,
+        //        heading: dist_hd.sample(&mut rng),
+        //    }).collect()
+        //};
+
+        let agents = { // circular
+            let circle_radius = (size_w.min(size_h)* 4/ 10) as f64;
+            let dist_hd = Uniform::from(0f64..PI*2.);
+            iter::repeat(()).take(500)
+                .map(|()| {
+                let hd = dist_hd.sample(&mut rng);
+                Agent {
+                    pos_y: circle_radius*hd.sin() + size_h as f64/ 2.,
+                    pos_x: circle_radius*hd.cos() + size_w as f64/ 2.,
+                    vel: VELOCITY,
+                    heading: hd + PI/2.,
+                }
+                }).collect()
+        };
 
         Dish { size_w, size_h,
                agents,
