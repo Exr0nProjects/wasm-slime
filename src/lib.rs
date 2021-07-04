@@ -29,6 +29,7 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 
 const FRAMERATE: f64 = 100.;
+const WORLD_SIZE: (usize, usize) = (512, 256);
 const NUM_AGENTS: usize = 800;
 const DIFFUSE_RADIUS: i32 = 1; // diffuse in 3x3 square
 const SENSOR_RADIUS: f64 = 2.;
@@ -412,6 +413,10 @@ impl Dish {
             ctx.tex_parameteri(GLC::TEXTURE_2D, GLC::TEXTURE_WRAP_T,     GLC::REPEAT  as i32);
             ctx.tex_parameteri(GLC::TEXTURE_2D, GLC::TEXTURE_MIN_FILTER, GLC::NEAREST as i32);
             ctx.tex_parameteri(GLC::TEXTURE_2D, GLC::TEXTURE_MAG_FILTER, GLC::NEAREST as i32);
+            ctx.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
+                GLC::TEXTURE_2D, 0, GLC::LUMINANCE as i32,
+                self.size_w as i32, self.size_h as i32,
+                0, GLC::RGBA, GLC::UNSIGNED_BYTE, None).expect("couldnt initialize texture");
             tex
         };
 
@@ -553,7 +558,8 @@ pub fn main_js() -> Result<(), JsValue> {
     // TODO: handle window resizing
     
     //let sim = Dish::new((width/10) as usize, (height/10) as usize);
-    let sim = Dish::new(width as usize, height as usize);
+    //let sim = Dish::new(width as usize, height as usize);
+    let sim = Dish::new(WORLD_SIZE);
     game_loop(sim, 40, 0.02, |g| {
         // update fn
         g.game.update(g.number_of_updates());
