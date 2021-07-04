@@ -220,11 +220,9 @@ impl Dish {
 
         ctx.clear_rect(0., 0., self.canvas.width() as f64, self.canvas.height() as f64);
 
-        //console::log_1(&JsValue::from_str(&format!("num agents {}", self.agents.len())));
         for y in 0..self.size_w as i32 {
             for x in 0..self.size_h as i32 {
                 if self.data[(y, x)] > 0 {
-                    //console::log_1(&JsValue::from_str(&format!("{} #{:02x?}{1:02x?}{1:02x?}", self.data[(y, x)], self.data[(y, x)])));
                     ctx.set_fill_style(&JsValue::from_str(
                             &format!("#{:02x?}{0:02x?}{0:02x?}", self.data[(y, x)])
                         ));
@@ -342,10 +340,8 @@ impl Dish {
             let (y, x, val) = agent.deposit();
             self.data[(y, x)] = self.data[(y, x)].saturating_add(val);
             self.active_cells.push_back((y, x));
-            //console::log_1(&JsValue::from_str(&format!("val = {} at {}, {}", val, x, y)));
         }
         self.diffuse();
-        //self.diffuse_nsquared();
         self.decay();
     }
     fn diffuse_nsquared(&mut self) {
@@ -363,7 +359,6 @@ impl Dish {
         swap(&mut self.data, &mut self.data_alt);
     }
     fn diffuse(&mut self) {
-        //console::log_1(&JsValue::from_str(&format!("size = {} {}", self.size_w, self.size_h)));
         // SPFA style
         self.visited.for_each(|x| *x = false); // should hopefully compile to memset: https://users.rust-lang.org/t/fastest-way-to-zero-an-array/39222
         self.data_alt.for_each(|x| *x = 0);
@@ -373,7 +368,6 @@ impl Dish {
         }
         let mut active_next = VecDeque::new();
         loop {
-            //console::log_1(&JsValue::from_str(&format!("spfa len = {}", self.active_cells.len())));
             if let Some((cy, cx)) = self.active_cells.pop_front() {
                 let mut sum = 0i32;
                 for y in cy-DIFFUSE_RADIUS..=cy+DIFFUSE_RADIUS {
@@ -392,11 +386,16 @@ impl Dish {
         swap(&mut self.active_cells, &mut active_next);
         swap(&mut self.data, &mut self.data_alt);
     }
-    fn decay(&mut self) {
+    fn decay_nsquared(&mut self) {
         for y in 0..self.size_h as i32 {
             for x in 0..self.size_w as i32 {
                 self.data[(y, x)] = (self.data[(y, x)] as f64 * 0.97) as u8;
             }
+        }
+    }
+    fn decay(&mut self) {
+        for c in &self.active_cells {
+            self.data[*c] = (self.data[*c] as f64 * 0.97) as u8;
         }
     }
 }
