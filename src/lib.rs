@@ -3,7 +3,7 @@ use game_loop::game_loop;
 
 use wasm_bindgen::prelude::*;
 use web_sys::{ console, window, Node };
-use web_sys::{ WebGlProgram, WebGlRenderingContext, WebGlShader };
+use web_sys::{ WebGlProgram, WebGlRenderingContext, WebGlShader, WebGlTexture };
 use wasm_bindgen::JsCast;
 
 use rand::prelude::{ thread_rng, ThreadRng, Rng };
@@ -345,41 +345,52 @@ impl Dish {
             &ctx,
             WebGlRenderingContext::VERTEX_SHADER,
             r#"
+            varying vec4 vpass;
             attribute vec4 position;
             void main() {
                 gl_Position = position;
+                vpass = gl_Position * 0.5 + 0.5;
             }
             "#,
             ).expect("couldn't compile vert shader");
         
+        //let frag_shader = compile_shader(
+        //    &ctx,
+        //    WebGlRenderingContext::FRAGMENT_SHADER,
+        //    r#"
+        //    void main() {
+        //        gl_FragColor = vec4(0.2, 0.2, 0.5, 1.0);
+        //    }
+        //    "#,
+        //    ).expect("couldn't compile frag shader");
         let frag_shader = compile_shader(
             &ctx,
             WebGlRenderingContext::FRAGMENT_SHADER,
             r#"
+            precision mediump float;
+
+            //varying vec4 vpass;
+            //varying highp vec2 vTextureCoord;
+
+            uniform sampler2D state;
+
             void main() {
-                gl_FragColor = vec4(0.2, 0.2, 0.5, 1.0);
+                //gl_FragColor = vec4(0.2, 0.2, 0.5, 1.0);
+                //gl_FragColor = texture2D(state, gl_FragCoord.xy)
+                gl_FragColor = vpass;
             }
             "#,
             ).expect("couldn't compile frag shader");
         
         let program = link_program(&ctx, &vert_shader, &frag_shader).expect("couldn't link webgl program");
         ctx.use_program(Some(&program));
-        
-        let vertices: [f32; 9] = [-0.7, -0.7, 0.0, 0.7, -0.7, 0.0, 0.0, 0.7, 0.0];
-        
-        let buffer = ctx.create_buffer().ok_or("failed to create buffer").unwrap();
-        ctx.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&buffer));
-        
-        // Note that `Float32Array::view` is somewhat dangerous (hence the
-        // `unsafe`!). This is creating a raw view into our module's
-        // `WebAssembly.Memory` buffer, but if we allocate more pages for ourself
-        // (aka do a memory allocation in Rust) it'll cause the buffer to change,
-        // causing the `Float32Array` to be invalid.
-        //
-        // As a result, after `Float32Array::view` we have to be very careful not to
-        // do any memory allocations before it's dropped.
+
+        let plane_verts: [f32; 4*3] = [-0.8, -0.8, 0., -0.8, 0.8, 0., 0.8, 0.8, 0., 0.8, -0.8, 0.];
+        //let plane_verts: [f32; 9] = [-0.7, -0.7, 0.0, 0.7, -0.7, 0.0, 0.0, 0.7, 0.0];
+        let plane_buf = ctx.create_buffer().ok_or("failed to create buffer").unwrap();
+        ctx.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&plane_buf));
         unsafe {
-            let vert_array = js_sys::Float32Array::view(&vertices);
+            let vert_array = js_sys::Float32Array::view(&plane_verts);
         
             ctx.buffer_data_with_array_buffer_view(
                 WebGlRenderingContext::ARRAY_BUFFER,
@@ -387,18 +398,62 @@ impl Dish {
                 WebGlRenderingContext::STATIC_DRAW,
                 );
         }
-        
         ctx.vertex_attrib_pointer_with_i32(0, 3, WebGlRenderingContext::FLOAT, false, 0, 0);
         ctx.enable_vertex_attrib_array(0);
-        
-        //ctx.clear_color(0.0, 0.0, 0.0, 1.0);
-        ctx.clear(WebGlRenderingContext::COLOR_BUFFER_BIT);
-        
+
+        let state_idx = ctx.get_uniform_location(&program, "state");
+        let create_texture = || -> WebGlTexture {
+            //use WebGlRenderingContext::{ TEXTURE_2D, TEXTURE_WRAP_S, TEXTURE_WRAP_T, TEXTURE_MIN_FILTER, TEXTURE_MAG_FILTER, REPEAT, NEAREST };
+            use WebGlRenderingContext as GLC;
+            // https://nullprogram.com/blog/2014/06/10/
+            let tex = ctx.create_texture().expect("couldn't create texture");
+            ctx.bind_texture(GLC::TEXTURE_2D, Some(&tex));
+            ctx.tex_parameteri(GLC::TEXTURE_2D, GLC::TEXTURE_WRAP_S,     GLC::REPEAT  as i32);// TODO: why need convert, seems sus
+            ctx.tex_parameteri(GLC::TEXTURE_2D, GLC::TEXTURE_WRAP_T,     GLC::REPEAT  as i32);
+            ctx.tex_parameteri(GLC::TEXTURE_2D, GLC::TEXTURE_MIN_FILTER, GLC::NEAREST as i32);
+            ctx.tex_parameteri(GLC::TEXTURE_2D, GLC::TEXTURE_MAG_FILTER, GLC::NEAREST as i32);
+            tex
+        };
+
         ctx.draw_arrays(
-            WebGlRenderingContext::TRIANGLES,
+            WebGlRenderingContext::TRIANGLE_FAN,
+            //WebGlRenderingContext::TRIANGLES,
             0,
-            (vertices.len() / 3) as i32,
+            (plane_verts.len() / 3) as i32,
         );
+        
+        //let vertices: [f32; 9] = [-0.7, -0.7, 0.0, 0.7, -0.7, 0.0, 0.0, 0.7, 0.0];
+        //
+        //let buffer = ctx.create_buffer().ok_or("failed to create buffer").unwrap();
+        //ctx.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&buffer));
+        //
+        //// Note that `Float32Array::view` is somewhat dangerous (hence the
+        //// `unsafe`!). This is creating a raw view into our module's
+        //// `WebAssembly.Memory` buffer, but if we allocate more pages for ourself
+        //// (aka do a memory allocation in Rust) it'll cause the buffer to change,
+        //// causing the `Float32Array` to be invalid.
+        ////
+        //// As a result, after `Float32Array::view` we have to be very careful not to
+        //// do any memory allocations before it's dropped.
+        //unsafe {
+        //    let vert_array = js_sys::Float32Array::view(&vertices);
+        //
+        //    ctx.buffer_data_with_array_buffer_view(
+        //        WebGlRenderingContext::ARRAY_BUFFER,
+        //        &vert_array,
+        //        WebGlRenderingContext::STATIC_DRAW,
+        //        );
+        //}
+        //
+        //
+        ////ctx.clear_color(0.0, 0.0, 0.0, 1.0);
+        //ctx.clear(WebGlRenderingContext::COLOR_BUFFER_BIT);
+        //
+        //ctx.draw_arrays(
+        //    WebGlRenderingContext::TRIANGLES,
+        //    0,
+        //    (vertices.len() / 3) as i32,
+        //);
     }
 }
 impl Dish {
