@@ -13,6 +13,7 @@ use std::f64::consts::PI;
 use core::ops::{ Index, IndexMut };
 use std::mem::swap;
 use std::iter;
+use std::collections::VecDeque; // NTFS OPTM: replace with queues = "1.1.0" CircularBuffer
 use std::time::Duration;
 use std::thread::sleep;
 
@@ -41,13 +42,14 @@ struct Agent {
     pos_y: f64,
     vel: f64,
     heading: f64,   // radians
+
     prev: i32,
     lef: i32,
     rig: i32,
     fwd: i32,
 }
 impl Agent {
-    fn update(&mut self, data: &Vec2d, size_w: usize, size_h: usize, rand: f64) -> i32 {
+    fn update(&mut self, data: &Vec2d<u8>, size_w: usize, size_h: usize, rand: f64) -> i32 {
         assert!(0. <= rand && rand < 1.);
         let [lef, fwd, rig] = [(self.pos_x + SENSOR_DISTANCE * (self.heading - SENSOR_ANGLE).cos(),
                             self.pos_y + SENSOR_DISTANCE * (self.heading - SENSOR_ANGLE).sin()),
@@ -97,28 +99,41 @@ impl Agent {
 }
 
 #[derive(Debug)]
-struct Vec2d {
+struct Vec2d<T: Clone> {
     size_w: usize,
     size_h: usize,
-    data: Vec<u8>
+    data: Vec<T>
 }
-impl Vec2d {
-    fn new(size_w: usize, size_h: usize) -> Vec2d {
-        Vec2d { size_w, size_h, data: vec![0u8; size_h * size_w] }
+impl<T: Clone> Vec2d<T> {
+    fn new(size_w: usize, size_h: usize, fill: T) -> Vec2d<T> {
+        Vec2d { size_w, size_h, data: vec![fill; size_h * size_w] }
+    }
+    fn resize(&mut self) {} // TODO
+    fn for_each<F>(&mut self, f: F) where F: FnMut(&mut T) {
+        self.data.iter_mut().for_each(f);
     }
 }
 
-impl Index<(i32, i32)> for Vec2d {
-    type Output = u8;
+// TODO: https://stackoverflow.com/questions/57203009/implementing-slice-for-custom-type (for iter_mut)
+impl<T: Clone> Index<(i32, i32)> for Vec2d<T> {
+    type Output = T;
     fn index(&self, index: (i32, i32)) -> &Self::Output {
         &self.data[index.0.rem_euclid(self.size_h as i32) as usize * self.size_w
                  + index.1.rem_euclid(self.size_w as i32) as usize]
     }
 }
-impl IndexMut<(i32, i32)> for Vec2d {
+impl<T: Clone> IndexMut<(i32, i32)> for Vec2d<T> {
     fn index_mut(&mut self, index: (i32, i32)) -> &mut Self::Output {
         &mut self.data[index.0.rem_euclid(self.size_h as i32) as usize * self.size_w
                      + index.1.rem_euclid(self.size_w as i32) as usize]
+    }
+}
+
+impl<T: Clone> IntoIterator for Vec2d<T> {
+    type Item = T;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.data.into_iter()
     }
 }
 
@@ -126,9 +141,13 @@ impl IndexMut<(i32, i32)> for Vec2d {
 struct Dish {
     size_w: usize,
     size_h: usize,
+
     agents: Vec<Agent>,
-    data: Vec2d,
-    data_alt: Vec2d,
+    data: Vec2d<u8>,
+    data_alt: Vec2d<u8>,
+    visited: Vec2d<bool>,               // inq, for SPFA style update
+    active_cells: VecDeque<(i32, i32)>, // invariant: contains all active cells at beginning of render()
+
     canvas: web_sys::HtmlCanvasElement,
     rng: ThreadRng,
 }
@@ -151,6 +170,9 @@ impl Dish {
         //        heading: dist_hd.sample(&mut rng),
         //    }).collect()
         //};
+        
+        let mut active_cells = VecDeque::new();
+        active_cells.reserve(NUM_AGENTS);
 
         let agents = { // circular
             let circle_radius = (size_w.min(size_h)* 2/ 10) as f64;
@@ -158,9 +180,14 @@ impl Dish {
             iter::repeat(()).take(NUM_AGENTS)
                 .map(|()| {
                 let hd = dist_hd.sample(&mut rng);
+
+                let y = circle_radius*hd.sin() + size_h as f64/ 4.;
+                let x = circle_radius*hd.cos() + size_w as f64/ 4.;
+                active_cells.push_back((y.round() as i32, x.round() as i32));
+
                 Agent {
-                    pos_y: circle_radius*hd.sin() + size_h as f64/ 4.,
-                    pos_x: circle_radius*hd.cos() + size_w as f64/ 4.,
+                    pos_y: y,
+                    pos_x: x,
                     vel: VELOCITY,
                     heading: (hd + PI/2.).rem_euclid(PI*2.),
                     prev: 0, lef: 0, rig: 0, fwd: 0,
@@ -170,8 +197,10 @@ impl Dish {
 
         Dish { size_w, size_h,
                agents,
-               data:     Vec2d::new(size_w, size_h),
-               data_alt: Vec2d::new(size_w, size_h),
+               data:     Vec2d::new(size_w, size_h, 0u8),
+               data_alt: Vec2d::new(size_w, size_h, 0u8),
+               visited:  Vec2d::new(size_w, size_h, false),
+               active_cells,
                canvas: doc.get_element_by_id("slime-canvas").unwrap()
                     .dyn_into::<web_sys::HtmlCanvasElement>()
                     .map_err(|_| ()).unwrap(),
@@ -317,8 +346,7 @@ impl Dish {
             //console::log_1(&JsValue::from_str(&format!("val = {} at {}, {}", val, x, y)));
         }
     }
-    fn diffuse(&mut self) {
-        console::log_1(&JsValue::from_str(&format!("size = {} {}", self.size_w, self.size_h)));
+    fn diffuse_nsquared(&mut self) {
         for cy in 0..self.size_h as i32 {
             for cx in 0..self.size_w as i32 {
                 let mut sum = 0i32;
@@ -330,6 +358,34 @@ impl Dish {
                 self.data_alt[(cy, cx)] = (sum / (DIFFUSE_RADIUS * 2 + 1).pow(2)).min(u8::MAX as i32) as u8;
             }
         }
+        swap(&mut self.data, &mut self.data_alt);
+    }
+    fn diffuse(&mut self) {
+        //console::log_1(&JsValue::from_str(&format!("size = {} {}", self.size_w, self.size_h)));
+        // SPFA style
+        self.visited.for_each(|x| *x = false); // should hopefully compile to memset: https://users.rust-lang.org/t/fastest-way-to-zero-an-array/39222
+        for c in &self.active_cells {
+            self.visited[*c] = true;
+        }
+        let mut active_next = VecDeque::new();
+        loop {
+            console::log_1(&JsValue::from_str(&format!("spfa len = {}", self.active_cells.len())));
+            if let Some((cy, cx)) = self.active_cells.pop_front() {
+                let mut sum = 0i32;
+                for y in cy-DIFFUSE_RADIUS..cy+DIFFUSE_RADIUS + 1 {
+                    for x in cx-DIFFUSE_RADIUS..cx+DIFFUSE_RADIUS + 1 {
+                        if !self.visited[(y, x)] && self.data[(y, x)] > 0 {
+                            self.visited[(y, x)] = true;
+                            self.active_cells.push_back((y, x));
+                        }
+                        sum += self.data[(y, x)] as i32;
+                    }
+                }
+                self.data_alt[(cy, cx)] = (sum / (DIFFUSE_RADIUS * 2 + 1).pow(2)).min(u8::MAX as i32) as u8;
+                if self.data_alt[(cy, cx)] > 0 { active_next.push_back((cy, cx)) }
+            } else { break }
+        }
+        swap(&mut self.active_cells, &mut active_next);
         swap(&mut self.data, &mut self.data_alt);
     }
     fn decay(&mut self) {
@@ -369,7 +425,7 @@ pub fn main_js() -> Result<(), JsValue> {
     
     //let sim = Dish::new((width/10) as usize, (height/10) as usize);
     let sim = Dish::new(width as usize, height as usize);
-    game_loop(sim, 30, 0.02, |g| {
+    game_loop(sim, 40, 0.02, |g| {
         // update fn
         g.game.update(g.number_of_updates());
     }, |g| {
