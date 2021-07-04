@@ -5,7 +5,7 @@ use wasm_bindgen::prelude::*;
 use web_sys::{ console, window, Node };
 use wasm_bindgen::JsCast;
 
-use rand::prelude::thread_rng;
+use rand::prelude::{ thread_rng, ThreadRng, Rng };
 use rand::distributions::{Distribution, Uniform};
 use rand_distr::Normal;
 
@@ -27,9 +27,9 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 const FRAMERATE: f64 = 100.;
 const DIFFUSE_RADIUS: i32 = 1; // diffuse in 3x3 square
 const SENSOR_RADIUS: f64 = 1.;
-const SENSOR_ANGLE: f64 = PI/4.;
+const SENSOR_ANGLE: f64 = PI/6.;
 const SENSOR_DISTANCE: f64 = 5.;
-const TURN_ANGLE: f64 = PI/8.;
+const TURN_ANGLE: f64 = PI/10.;
 
 #[derive(Debug)]
 struct Agent {
@@ -39,7 +39,8 @@ struct Agent {
     heading: f64,   // radians
 }
 impl Agent {
-    fn update(&mut self, data: &Vec2d, size_w: usize, size_h: usize) {
+    fn update(&mut self, data: &Vec2d, size_w: usize, size_h: usize, rand: f64) {
+        assert!(0. <= rand && rand < 1.);
         let [lef, fwd, rig] = [(self.pos_x + SENSOR_DISTANCE * (self.heading - SENSOR_ANGLE).cos(),
                             self.pos_y + SENSOR_DISTANCE * (self.heading - SENSOR_ANGLE).sin()),
                            (self.pos_x + SENSOR_DISTANCE * (self.heading               ).cos(),
@@ -59,8 +60,17 @@ impl Agent {
 
         // TODO: random steer strength
         if      fwd > lef && fwd > rig {}
-        else if fwd < lef && fwd < rig { /*TODO*/ }
-
+        else if fwd < lef && fwd < rig { 
+            if rand < lef as f64 / (lef + rig) as f64 {
+                self.heading += TURN_ANGLE;
+            } else {
+                self.heading -= TURN_ANGLE;
+            }
+        } else if lef < rig {
+            self.heading += TURN_ANGLE;
+        } else if rig > lef {
+            self.heading -= TURN_ANGLE;
+        }
 
         // TODO: sensor checks
         self.pos_y = (self.pos_y + self.vel * self.heading.sin()).rem_euclid(size_h as f64);
@@ -105,6 +115,7 @@ struct Dish {
     data: Vec2d,
     data_alt: Vec2d,
     canvas: web_sys::HtmlCanvasElement,
+    rng: ThreadRng,
 }
 impl Dish {
     fn new(size_w: usize, size_h: usize) -> Dish {
@@ -115,7 +126,7 @@ impl Dish {
         let dist_y = Normal::new(0., size_h as f64).expect("Couldn't create normal distribution!");
         let dist_x = Normal::new(0., size_w as f64).expect("Couldn't create normal distribution!");
         let dist_hd = Uniform::from(0f64..PI*2.);
-        let agents = iter::repeat(()).take(200)
+        let agents = iter::repeat(()).take(500)
             .map(|()| Agent {
                 pos_y: dist_y.sample(&mut rng),
                 pos_x: dist_x.sample(&mut rng),
@@ -130,6 +141,7 @@ impl Dish {
                canvas: doc.get_element_by_id("slime-canvas").unwrap()
                     .dyn_into::<web_sys::HtmlCanvasElement>()
                     .map_err(|_| ()).unwrap(),
+               rng,
         }
     }
     fn render(&self, updates: u32) {
@@ -163,8 +175,9 @@ impl Dish {
     fn update(&mut self, updates: u32) {
         self.diffuse();
         self.decay();
+        let dist = Uniform::new(0., 1.);
         for agent in &mut self.agents { // NTFS: probably expensive; parallelize
-            agent.update(&self.data, self.size_w, self.size_h);
+            agent.update(&self.data, self.size_w, self.size_h, self.rng.sample(dist));
         }
         for agent in &self.agents {
             let (y, x, val) = agent.deposit();
@@ -224,7 +237,7 @@ pub fn main_js() -> Result<(), JsValue> {
     
     let sim = Dish::new(width as usize, height as usize);
     //let sim = Dish::new(300, 100);
-    game_loop(sim, 10, 0.05, |g| {
+    game_loop(sim, 30, 0.02, |g| {
         // update fn
         g.game.update(g.number_of_updates());
     }, |g| {
