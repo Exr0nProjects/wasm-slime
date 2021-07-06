@@ -348,9 +348,13 @@ impl Dish {
             WebGlRenderingContext::VERTEX_SHADER,
             r#"
             varying vec4 vpass;
-            attribute vec4 position;
+            //attribute vec4 position;
+            attribute vec2 a_position;
+            uniform vec2 u_resolution;
+
             void main() {
-                gl_Position = position;
+                vec2 pos = (a_position/u_resolution) * 2.0 - 1.0; // convert 0..px to -1..1
+                gl_Position = vec4(pos * vec2(1, -1), 0, 1);
                 vpass = gl_Position * 0.5 + 0.5;
             }
             "#,
@@ -389,7 +393,8 @@ impl Dish {
         //let copy_program = 0; // TODO
         ctx.use_program(Some(&trail_map_program));
 
-        let plane_verts: [f32; 4*3] = [-0.8, -0.8, 0., -0.8, 0.8, 0., 0.8, 0.8, 0., 0.8, -0.8, 0.];
+        //let plane_verts: [f32; 4*3] = [-0.8, -0.8, 0., -0.8, 0.8, 0., 0.8, 0.8, 0., 0.8, -0.8, 0.];
+        let plane_verts: [f32; 4*3] = [0., 0., 0., 0., 200., 0., 500., 200., 0., 200., 0., 0.];
         //let plane_verts: [f32; 9] = [-0.7, -0.7, 0.0, 0.7, -0.7, 0.0, 0.0, 0.7, 0.0];
         let plane_buf = ctx.create_buffer().ok_or("failed to create buffer").unwrap();
         ctx.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&plane_buf));
@@ -407,6 +412,9 @@ impl Dish {
         ctx.vertex_attrib_pointer_with_i32(0, 3, WebGlRenderingContext::FLOAT, false, 0, 0);
         ctx.enable_vertex_attrib_array(0);
 
+        let loc_u_resolution = ctx.get_uniform_location(&trail_map_program, "u_resolution").unwrap();
+        ctx.uniform2f(Some(&loc_u_resolution), self.size_w as f32, self.size_h as f32);
+
         let state_idx = ctx.get_uniform_location(&trail_map_program, "state");
         let create_texture = || -> WebGlTexture {
             //use WebGlRenderingContext::{ TEXTURE_2D, TEXTURE_WRAP_S, TEXTURE_WRAP_T, TEXTURE_MIN_FILTER, TEXTURE_MAG_FILTER, REPEAT, NEAREST };
@@ -423,6 +431,10 @@ impl Dish {
                 0, GLC::RGBA, GLC::UNSIGNED_BYTE, None).expect("couldnt initialize texture");
             tex
         };
+
+        let fill_texture = |&mut tex| {
+
+        }
 
         //let step = || {
         //    ctx.bind_framebuffer(GLC::FRAMEBUFFER, framebuffer);
