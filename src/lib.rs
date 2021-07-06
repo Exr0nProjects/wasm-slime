@@ -332,6 +332,7 @@ impl Dish {
         ////}
     }
     fn render_webgl(&self, updates: u32) {
+        use WebGlRenderingContext as GLC;
         let ctx = self.canvas
             .get_context("webgl")
             .unwrap()
@@ -370,7 +371,7 @@ impl Dish {
             r#"
             precision mediump float;
 
-            //varying vec4 vpass;
+            varying vec4 vpass;
             //varying highp vec2 vTextureCoord;
 
             uniform sampler2D state;
@@ -383,8 +384,10 @@ impl Dish {
             "#,
             ).expect("couldn't compile frag shader");
         
-        let program = link_program(&ctx, &vert_shader, &frag_shader).expect("couldn't link webgl program");
-        ctx.use_program(Some(&program));
+        let trail_map_program = link_program(&ctx, &vert_shader, &frag_shader).expect("couldn't link webgl program");
+
+        //let copy_program = 0; // TODO
+        ctx.use_program(Some(&trail_map_program));
 
         let plane_verts: [f32; 4*3] = [-0.8, -0.8, 0., -0.8, 0.8, 0., 0.8, 0.8, 0., 0.8, -0.8, 0.];
         //let plane_verts: [f32; 9] = [-0.7, -0.7, 0.0, 0.7, -0.7, 0.0, 0.0, 0.7, 0.0];
@@ -399,13 +402,14 @@ impl Dish {
                 WebGlRenderingContext::STATIC_DRAW,
                 );
         }
+        //ctx.vertex_attrib_pointer_with_i32(GLC::ARRAY_BUFFER, 3, WebGlRenderingContext::FLOAT, false, 0, 0);
+        //ctx.enable_vertex_attrib_array(GLC::ARRAY_BUFFER);
         ctx.vertex_attrib_pointer_with_i32(0, 3, WebGlRenderingContext::FLOAT, false, 0, 0);
         ctx.enable_vertex_attrib_array(0);
 
-        let state_idx = ctx.get_uniform_location(&program, "state");
+        let state_idx = ctx.get_uniform_location(&trail_map_program, "state");
         let create_texture = || -> WebGlTexture {
             //use WebGlRenderingContext::{ TEXTURE_2D, TEXTURE_WRAP_S, TEXTURE_WRAP_T, TEXTURE_MIN_FILTER, TEXTURE_MAG_FILTER, REPEAT, NEAREST };
-            use WebGlRenderingContext as GLC;
             // https://nullprogram.com/blog/2014/06/10/
             let tex = ctx.create_texture().expect("couldn't create texture");
             ctx.bind_texture(GLC::TEXTURE_2D, Some(&tex));
@@ -419,6 +423,33 @@ impl Dish {
                 0, GLC::RGBA, GLC::UNSIGNED_BYTE, None).expect("couldnt initialize texture");
             tex
         };
+
+        //let step = || {
+        //    ctx.bind_framebuffer(GLC::FRAMEBUFFER, framebuffer);
+        //    ctx.framebuffer_texture_2d(GLC::FRAMEBUFFER, GLC::COLOR_ATTACHMENT0,
+        //                               GLC::TEXTURE_2d, back_texture, 0);
+        //    ctx.viewport(0, 0, self.size_w as i32, self.size_h as i32);
+        //    ctx.bind_texture(GLC::TEXTURE_2D, front_texture);   // TODO: TEXTURE_2D_ARRAY?
+        //    trail_map_program.use()
+        //        .attrib('quad', this.buffers.quad, 2)
+        //        .uniform('state', 0, true)
+        //        .uniform('scale', this.statesize)
+        //        .draw(gl.TRIANGLE_STRIP, 4);
+        //
+        //    mem::swap(front_texture, back_texture);
+        //};
+        //
+        //let draw = || {
+        //    ctx.bind_framebuffer(GLC::FRAMEBUFFER, None);
+        //    ctx.viewport(0, 0, self.size_w as i32, self.size_h as i32);  
+        //    ctx.bind_texture(GLC::TEXTURE_2D, front_texture);
+        //
+        //    trail_map_program.copy.use() // TODO: a program to copy the state to the display size
+        //        .attrib('quad', this.buffers.quad, 2)
+        //        .uniform('state', 0, true)
+        //        .uniform('scale', this.statesize)
+        //        .draw(gl.TRIANGLE_STRIP, 4);
+        //};
 
         ctx.draw_arrays(
             WebGlRenderingContext::TRIANGLE_FAN,
@@ -559,7 +590,7 @@ pub fn main_js() -> Result<(), JsValue> {
     
     //let sim = Dish::new((width/10) as usize, (height/10) as usize);
     //let sim = Dish::new(width as usize, height as usize);
-    let sim = Dish::new(WORLD_SIZE);
+    let sim = Dish::new(WORLD_SIZE.0, WORLD_SIZE.1);
     game_loop(sim, 40, 0.02, |g| {
         // update fn
         g.game.update(g.number_of_updates());

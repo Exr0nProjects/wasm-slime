@@ -49,6 +49,7 @@ features = [
     "CanvasRenderingContext2d",
     "WebGlBuffer",
     "WebGlRenderingContext",
+    "WebGlFramebuffer",
     "WebGlUniformLocation",
     "WebGlProgram",
     "WebGlTexture",
