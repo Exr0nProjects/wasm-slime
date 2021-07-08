@@ -28,12 +28,12 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 
 const FRAMERATE: f64 = 100.;
-const NUM_AGENTS: usize = 800;
+const NUM_AGENTS: usize = 6000;
 const DIFFUSE_RADIUS: i32 = 1; // diffuse in 3x3 square
-const SENSOR_RADIUS: f64 = 2.;
-const SENSOR_ANGLE: f64 = PI/3.;
-const SENSOR_DISTANCE: f64 = 8.;
-const TURN_ANGLE: f64 = PI/12.;
+const SENSOR_RADIUS: f64 = 12.;
+const SENSOR_ANGLE: f64 = 2. / 180. * PI;
+const SENSOR_DISTANCE: f64 = 12.;
+const TURN_ANGLE: f64 =   4. / 180. * PI;
 const VELOCITY: f64 = 2.;
 
 #[derive(Debug)]
