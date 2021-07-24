@@ -1,0 +1,61 @@
+[package]
+name = "wasm-slime-pack"
+version = "0.1.0"
+authors = ["Exr0n <mail@exr0n.com>"]
+edition = "2018"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+#[features]
+#default = ["console_error_panic_hook"]
+
+[dependencies]
+getrandom = { version = "0.2.3", features = ["js"] }
+rand = { version = "0.8.4" }
+rand_distr = "0.4.1"
+game-loop = "0.7.3"
+
+wasm-bindgen = "0.2.63"
+
+# The `console_error_panic_hook` crate provides better debugging of panics by
+# logging them with `console.error`. This is great for development, but requires
+# all the `std::fmt` and `std::panicking` infrastructure, so isn't great for
+# code size when deploying.
+console_error_panic_hook = { version = "0.1.6", optional = true }
+
+# `wee_alloc` is a tiny allocator for wasm that is only ~1K in code size
+# compared to the default allocator's ~10K. It is slower than the default
+# allocator, however.
+#
+# Unfortunately, `wee_alloc` requires nightly Rust when targeting wasm for now.
+wee_alloc = { version = "0.4.5", optional = true }
+
+# The `web-sys` crate allows you to interact with the various browser APIs,
+# like the DOM.
+
+[dependencies.web-sys]
+version = "0.3.22"
+features = [
+    "console",
+    "Window",
+    "Document",
+    "Element",
+    "Node",
+    "CanvasRenderingContext2d",
+    "WebGlBuffer",
+    "WebGlRenderingContext",
+    "WebGlFramebuffer",
+    "WebGlUniformLocation",
+    "WebGlProgram",
+    "WebGlTexture",
+    "WebGlShader",
+    "HtmlCanvasElement"
+]
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3.13"
+
+[profile.release]
+# Tell `rustc` to optimize for small code size.
+opt-level = "s"
